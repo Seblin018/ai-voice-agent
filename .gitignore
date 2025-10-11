@@ -1,0 +1,16 @@
+# dependencies
+node_modules/
+
+# local env files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# build output
+dist/
+build/
+
+# misc
+.DS_Store
+*.log
