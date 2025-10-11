@@ -14,3 +14,6 @@ build/
 # misc
 .DS_Store
 *.log
+
+# Node.js binary (local development)
+node-v20.11.0-darwin-x64/
