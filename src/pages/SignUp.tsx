@@ -29,6 +29,7 @@ export default function SignUp() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [successType, setSuccessType] = useState<'email-confirmation' | 'auto-confirmed' | null>(null);
   const navigate = useNavigate();
 
   const {
@@ -118,47 +119,92 @@ export default function SignUp() {
   const onSubmit = async (data: SignUpFormData) => {
     setIsLoading(true);
     setError(null);
-
+    
     try {
-      const { user, error } = await signUp(data.email, data.password);
+      console.log('Step 1: Signing up user...');
       
-      if (error) {
-        setError(error.message);
-      } else if (user) {
-        // Create business record
-        const { data: business, error: businessError } = await supabase
-          .from('businesses')
-          .insert({
-            name: data.businessName,
-            user_id: user.id,
-            industry: 'Septic Services',
-            avg_job_value: 575,
-            created_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        if (businessError) {
-          console.error('Error creating business:', businessError);
-          setError('Failed to create business profile. Please try again.');
-          return;
+      // Step 1: Sign up with metadata
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            business_name: data.businessName
+          }
         }
+      });
+      
+      if (signUpError) {
+        console.error('Signup error:', signUpError);
+        setError(signUpError.message);
+        return;
+      }
+      
+      if (!signUpData.user) {
+        console.error('No user returned from signup');
+        setError('Failed to create user account. Please try again.');
+        return;
+      }
+      
+      console.log('User created successfully:', signUpData.user.id);
+      console.log('Session after signup:', signUpData.session);
 
-        // Create default services
-        try {
-          await createDefaultServices(business.id);
-        } catch (serviceError) {
-          console.error('Error creating default services:', serviceError);
-          // Don't fail the signup if services creation fails
-        }
-
+      // Step 2: Check if email confirmation is required
+      // If there's no session, email confirmation is required
+      if (!signUpData.session) {
+        console.log('Email confirmation required - no session returned');
+        setSuccessType('email-confirmation');
         setSuccess(true);
         setTimeout(() => {
-          navigate('/dashboard');
+          navigate('/verify-email');
         }, 2000);
+        return;
       }
+
+      console.log('Email auto-confirmed! Session exists.');
+      console.log('Step 3: Creating business (already signed in)...');
+
+      // Step 3: Create business record (user is already authenticated from signup)
+      const { data: business, error: businessError } = await supabase
+        .from('businesses')
+        .insert({
+          name: data.businessName,
+          user_id: signUpData.user.id, // Use the user from signup, not sign-in
+          industry: 'Septic Services',
+          avg_job_value: 575
+        })
+        .select()
+        .single();
+      
+      if (businessError) {
+        console.error('Error creating business:', businessError);
+        console.error('Business error details:', JSON.stringify(businessError, null, 2));
+        setError('Failed to create business profile. Please try again.');
+        return;
+      }
+      
+      console.log('Business created successfully:', business.id);
+      console.log('Step 4: Creating default services...');
+      
+      // Step 4: Create default services
+      try {
+        await createDefaultServices(business.id);
+        console.log('Default services created successfully');
+      } catch (serviceError) {
+        console.error('Error creating default services:', serviceError);
+        // Don't fail the signup if services creation fails
+      }
+      
+      console.log('Signup complete! Redirecting to dashboard...');
+      setSuccessType('auto-confirmed');
+      setSuccess(true);
+      
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 2000);
+      
     } catch (err) {
-      console.error('Signup error:', err);
+      console.error('Unexpected signup error:', err);
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
@@ -175,10 +221,18 @@ export default function SignUp() {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Created!</h2>
             <p className="text-gray-600 mb-6">
-              Your business profile and default services have been set up successfully. You're ready to start using your AI Voice Agent!
+              {successType === 'email-confirmation' 
+                ? 'Your account has been created successfully. Please check your email for a confirmation link to complete your registration.'
+                : 'Your business profile and default services have been set up successfully. You\'re ready to start using your AI Voice Agent!'
+              }
             </p>
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-sm text-gray-500 mt-2">Redirecting to dashboard...</p>
+            <p className="text-sm text-gray-500 mt-2">
+              {successType === 'email-confirmation' 
+                ? 'Redirecting to email verification...'
+                : 'Redirecting to dashboard...'
+              }
+            </p>
           </div>
         </div>
       </div>
