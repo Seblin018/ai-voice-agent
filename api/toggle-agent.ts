@@ -22,6 +22,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
+    // 1. Accept POST with { business_id, enabled: boolean }
     const { business_id, enabled } = req.body;
     
     if (!business_id || typeof enabled !== 'boolean') {
@@ -30,7 +31,7 @@ export default async function handler(req: any, res: any) {
 
     console.log('Toggling AI agent for business:', business_id, 'enabled:', enabled);
 
-    // Get business details
+    // Get business details to verify it exists
     const { data: business, error: businessError } = await supabase
       .from('businesses')
       .select('*')
@@ -42,36 +43,11 @@ export default async function handler(req: any, res: any) {
       return res.status(404).json({ error: 'Business not found' });
     }
 
-    if (!business.bland_agent_id) {
-      return res.status(400).json({ error: 'No AI agent configured for this business' });
-    }
-
-    // Update agent status in Bland
-    const updateResponse = await fetch(`https://api.bland.ai/v1/agents/${business.bland_agent_id}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${BLAND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        active: enabled
-      })
-    });
-
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text();
-      console.error('Error updating agent in Bland:', errorText);
-      return res.status(500).json({ error: 'Failed to update agent status' });
-    }
-
-    const updateResult = await updateResponse.json();
-    console.log('Agent updated in Bland:', updateResult);
-
-    // Update database
+    // 2. Update Supabase businesses.ai_enabled to the new value
     const { error: updateError } = await supabase
       .from('businesses')
       .update({
-        ai_status: enabled ? 'active' : 'inactive',
+        ai_enabled: enabled,
         updated_at: new Date().toISOString()
       })
       .eq('id', business_id);
@@ -81,13 +57,41 @@ export default async function handler(req: any, res: any) {
       return res.status(500).json({ error: 'Failed to update business record' });
     }
 
+    // 3. Optionally: pause/unpause agent in Bland (if API supports it)
+    if (business.bland_agent_id) {
+      try {
+        const updateResponse = await fetch(`https://api.bland.ai/v1/agents/${business.bland_agent_id}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${BLAND_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            active: enabled
+          })
+        });
+
+        if (updateResponse.ok) {
+          const updateResult = await updateResponse.json();
+          console.log('Agent updated in Bland:', updateResult);
+        } else {
+          const errorText = await updateResponse.text();
+          console.warn('Warning: Could not update agent in Bland:', errorText);
+          // Don't fail the request if Bland API fails
+        }
+      } catch (blandError) {
+        console.warn('Warning: Error updating agent in Bland:', blandError);
+        // Don't fail the request if Bland API fails
+      }
+    }
+
     // Log activity
     await supabase
       .from('business_activity_log')
       .insert({
         business_id,
-        activity_type: enabled ? 'ai_activated' : 'ai_deactivated',
-        description: `AI agent ${enabled ? 'activated' : 'deactivated'}`,
+        activity_type: enabled ? 'ai_enabled' : 'ai_disabled',
+        description: `AI agent ${enabled ? 'enabled' : 'disabled'} - ${enabled ? 'will answer calls' : 'will not answer calls'}`,
         metadata: {
           agent_id: business.bland_agent_id,
           phone_number: business.bland_phone_number,
@@ -97,10 +101,11 @@ export default async function handler(req: any, res: any) {
       });
 
     console.log('AI agent toggled successfully');
+    
+    // 4. Return { success: true, enabled: true/false }
     return res.status(200).json({
       success: true,
-      enabled,
-      message: `AI agent ${enabled ? 'activated' : 'deactivated'} successfully`
+      enabled
     });
 
   } catch (error) {
