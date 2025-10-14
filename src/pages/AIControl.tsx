@@ -14,7 +14,8 @@ import {
   Shield,
   Loader2,
   Copy,
-  ExternalLink
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
@@ -200,6 +201,22 @@ export default function AIControl() {
     }
   };
 
+  // Auto-hide success messages
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
+  // Auto-hide error messages
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
   const scheduleData = [
     { day: 'Monday', hours: '6:00 PM - 8:00 AM', active: true },
     { day: 'Tuesday', hours: '6:00 PM - 8:00 AM', active: true },
@@ -273,20 +290,32 @@ export default function AIControl() {
 
         {/* Success Message */}
         {successMessage && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <p className="text-green-800">{successMessage}</p>
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg animate-fade-in">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+              <p className="text-green-800 font-medium">{successMessage}</p>
+              <button
+                onClick={() => setSuccessMessage(null)}
+                className="ml-auto p-1 hover:bg-green-100 rounded-full transition-colors duration-200"
+              >
+                <X className="h-4 w-4 text-green-600" />
+              </button>
             </div>
           </div>
         )}
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              <p className="text-red-800">{error}</p>
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg animate-fade-in">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+              <p className="text-red-800 font-medium">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="ml-auto p-1 hover:bg-red-100 rounded-full transition-colors duration-200"
+              >
+                <X className="h-4 w-4 text-red-600" />
+              </button>
             </div>
           </div>
         )}
@@ -403,13 +432,39 @@ export default function AIControl() {
                     <Settings className="h-5 w-5" />
                     Setup Call Forwarding
                   </button>
-                  <button
-                    onClick={testCall}
+                  <a
+                    href={`tel:${business.ai_phone_number}`}
                     className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors duration-200"
                   >
                     <Phone className="h-5 w-5" />
                     Test Call
-                  </button>
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Status Card */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 mb-8">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-full ${business.ai_enabled ? 'bg-green-100' : 'bg-gray-100'}`}>
+                    <Bot className={`h-6 w-6 ${business.ai_enabled ? 'text-green-600' : 'text-gray-600'}`} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">AI Agent Status</h3>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${business.ai_enabled ? 'bg-green-500' : 'bg-gray-400'}`} />
+                      <span className={`font-medium ${business.ai_enabled ? 'text-green-600' : 'text-gray-600'}`}>
+                        {business.ai_enabled ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-500">Last updated</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {new Date().toLocaleString()}
+                  </p>
                 </div>
               </div>
             </div>
