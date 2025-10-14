@@ -38,7 +38,6 @@ export default function AIControl() {
   const [isProvisioning, setIsProvisioning] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [showTestCallModal, setShowTestCallModal] = useState(false);
   const [showForwardingModal, setShowForwardingModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
