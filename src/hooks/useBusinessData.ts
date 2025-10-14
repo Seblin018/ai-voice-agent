@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from './useAuth';
 
 interface Business {
   id: string;
@@ -14,10 +14,13 @@ interface Call {
   id: string;
   business_id: string;
   caller_phone: string;
+  caller_name?: string;
   duration_seconds: number;
-  outcome: 'appointment_booked' | 'info_request' | 'hang_up';
+  outcome: 'appointment_booked' | 'info_request' | 'hang_up' | 'no_answer' | 'failed';
   service_requested: string;
   notes: string;
+  recording_url?: string;
+  transcript?: string;
   created_at: string;
 }
 
@@ -82,7 +85,19 @@ export function useBusinessData() {
 
       const { data, error } = await supabase
         .from('calls')
-        .select('*')
+        .select(`
+          id,
+          business_id,
+          caller_phone,
+          caller_name,
+          duration_seconds,
+          outcome,
+          service_requested,
+          notes,
+          recording_url,
+          transcript,
+          created_at
+        `)
         .eq('business_id', business.id)
         .order('created_at', { ascending: false })
         .limit(10);

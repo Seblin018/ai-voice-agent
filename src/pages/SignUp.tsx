@@ -4,7 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
-import { signUp } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 
 const signUpSchema = z.object({
@@ -57,80 +56,22 @@ export default function SignUp() {
   const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
   const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500'];
 
-  const createDefaultServices = async (businessId: string) => {
-    const defaultServices = [
-      {
-        business_id: businessId,
-        name: 'Emergency Pumping',
-        price_min: 400,
-        price_max: 600,
-        duration_minutes: 120,
-        urgency: 'Emergency',
-        description: 'Emergency septic tank pumping service'
-      },
-      {
-        business_id: businessId,
-        name: 'Routine Pumping',
-        price_min: 250,
-        price_max: 400,
-        duration_minutes: 90,
-        urgency: 'Flexible',
-        description: 'Regular septic tank maintenance and pumping'
-      },
-      {
-        business_id: businessId,
-        name: 'Septic Inspection',
-        price_min: 150,
-        price_max: 250,
-        duration_minutes: 60,
-        urgency: 'Same Day',
-        description: 'Comprehensive septic system inspection'
-      },
-      {
-        business_id: businessId,
-        name: 'Drain Field Repair',
-        price_min: 800,
-        price_max: 1500,
-        duration_minutes: 240,
-        urgency: 'Emergency',
-        description: 'Drain field repair and restoration services'
-      },
-      {
-        business_id: businessId,
-        name: 'System Installation',
-        price_min: 3000,
-        price_max: 8000,
-        duration_minutes: 480,
-        urgency: 'Flexible',
-        description: 'Complete septic system installation'
-      }
-    ];
-
-    const { error } = await supabase
-      .from('services')
-      .insert(defaultServices);
-
-    if (error) {
-      console.error('Error creating default services:', error);
-      throw error;
-    }
-  };
-
   const onSubmit = async (data: SignUpFormData) => {
     setIsLoading(true);
     setError(null);
     
     try {
+      console.log('=== SIGNUP FLOW START ===');
       console.log('Step 1: Signing up user...');
       
-      // Step 1: Sign up with metadata
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
           data: {
             business_name: data.businessName
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/dashboard`
         }
       });
       
@@ -146,13 +87,12 @@ export default function SignUp() {
         return;
       }
       
-      console.log('User created successfully:', signUpData.user.id);
-      console.log('Session after signup:', signUpData.session);
-
-      // Step 2: Check if email confirmation is required
-      // If there's no session, email confirmation is required
+      console.log('User created:', signUpData.user.id);
+      console.log('Session exists:', !!signUpData.session);
+      
+      // Check if email confirmation is required
       if (!signUpData.session) {
-        console.log('Email confirmation required - no session returned');
+        console.log('No session - email confirmation required');
         setSuccessType('email-confirmation');
         setSuccess(true);
         setTimeout(() => {
@@ -160,42 +100,88 @@ export default function SignUp() {
         }, 2000);
         return;
       }
-
-      console.log('Email auto-confirmed! Session exists.');
-      console.log('Step 3: Creating business (already signed in)...');
-
-      // Step 3: Create business record (user is already authenticated from signup)
+      
+      // Session exists - user is auto-confirmed
+      console.log('Session exists - setting session explicitly...');
+      
+      // Explicitly set the session
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: signUpData.session.access_token,
+        refresh_token: signUpData.session.refresh_token,
+      });
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        setError('Failed to establish session. Please try signing in.');
+        return;
+      }
+      
+      console.log('Session set successfully');
+      
+      // Wait a moment for session to propagate
+      console.log('Waiting for session to propagate...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Verify session is active
+      const { data: currentSession } = await supabase.auth.getSession();
+      console.log('Current session:', currentSession.session?.user?.id);
+      
+      if (!currentSession.session) {
+        console.error('Session not established');
+        setError('Session not established. Please try signing in.');
+        return;
+      }
+      
+      console.log('Step 2: Creating business...');
+      
+      // Now create business (user should be authenticated)
       const { data: business, error: businessError } = await supabase
         .from('businesses')
         .insert({
           name: data.businessName,
-          user_id: signUpData.user.id, // Use the user from signup, not sign-in
+          user_id: signUpData.user.id,
           industry: 'Septic Services',
-          avg_job_value: 575
+          avg_job_value: 575,
         })
         .select()
         .single();
       
       if (businessError) {
-        console.error('Error creating business:', businessError);
-        console.error('Business error details:', JSON.stringify(businessError, null, 2));
-        setError('Failed to create business profile. Please try again.');
+        console.error('Business creation error:', businessError);
+        console.error('Error details:', JSON.stringify(businessError, null, 2));
+        setError(`Failed to create business profile: ${businessError.message}`);
         return;
       }
       
-      console.log('Business created successfully:', business.id);
-      console.log('Step 4: Creating default services...');
+      console.log('Business created:', business.id);
+      console.log('Step 3: Creating default services...');
       
-      // Step 4: Create default services
-      try {
-        await createDefaultServices(business.id);
-        console.log('Default services created successfully');
-      } catch (serviceError) {
-        console.error('Error creating default services:', serviceError);
-        // Don't fail the signup if services creation fails
+      // Create default services
+      const defaultServices = [
+        { name: 'Emergency Pumping', price_min: 400, price_max: 600, urgency_level: 'Emergency', duration_minutes: 120 },
+        { name: 'Routine Pumping', price_min: 250, price_max: 400, urgency_level: 'Flexible', duration_minutes: 90 },
+        { name: 'Septic Inspection', price_min: 150, price_max: 250, urgency_level: 'Same Day', duration_minutes: 60 },
+        { name: 'Drain Field Repair', price_min: 800, price_max: 1500, urgency_level: 'Emergency', duration_minutes: 240 },
+        { name: 'System Installation', price_min: 3000, price_max: 8000, urgency_level: 'Flexible', duration_minutes: 480 },
+      ];
+      
+      const { error: servicesError } = await supabase.from('services').insert(
+        defaultServices.map(service => ({
+          ...service,
+          business_id: business.id,
+        }))
+      );
+      
+      if (servicesError) {
+        console.error('Services creation error:', servicesError);
+        // Don't fail signup if services fail
+      } else {
+        console.log('Default services created');
       }
       
-      console.log('Signup complete! Redirecting to dashboard...');
+      console.log('=== SIGNUP FLOW COMPLETE ===');
+      console.log('Redirecting to dashboard...');
+      
       setSuccessType('auto-confirmed');
       setSuccess(true);
       

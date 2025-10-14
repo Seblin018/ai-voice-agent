@@ -7,6 +7,7 @@ import {
   CreditCard, 
   Menu, 
   X,
+  MessageSquare,
   User,
   LogOut,
   ChevronDown
@@ -42,15 +43,8 @@ export default function Layout({ children }: LayoutProps) {
     return location.pathname.startsWith(href);
   };
 
-  // AI Agent status - this would typically come from your backend/state management
-  const [aiAgentStatus, setAiAgentStatus] = useState<'active' | 'inactive' | 'loading'>('active');
-
-  const toggleAiAgent = () => {
-    if (aiAgentStatus === 'active') {
-      setAiAgentStatus('inactive');
-    } else if (aiAgentStatus === 'inactive') {
-      setAiAgentStatus('active');
-    }
+  const handleCursorClick = () => {
+    console.log("Hello from Cursor!");
   };
 
   const handleLogout = async () => {
@@ -199,21 +193,12 @@ export default function Layout({ children }: LayoutProps) {
             </div>
             
             <div className="flex items-center gap-4">
-              {/* AI Agent Status Indicator */}
               <button
-                onClick={toggleAiAgent}
-                className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+                onClick={handleCursorClick}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
               >
-                <div className={`w-2 h-2 rounded-full ${
-                  aiAgentStatus === 'active' ? 'bg-green-500' : 
-                  aiAgentStatus === 'inactive' ? 'bg-red-500' : 
-                  'bg-yellow-500 animate-pulse'
-                }`}></div>
-                <span className="text-sm font-medium text-gray-700">
-                  AI Agent: {aiAgentStatus === 'active' ? 'Active' : 
-                           aiAgentStatus === 'inactive' ? 'Inactive' : 
-                           'Loading...'}
-                </span>
+                <MessageSquare className="h-4 w-4" />
+                Test Cursor
               </button>
               
               {/* User Profile Dropdown */}

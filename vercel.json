@@ -1,0 +1,21 @@
+{
+  "functions": {
+    "api/bland-webhook.ts": {
+      "maxDuration": 30
+    },
+    "api/create-agent.ts": {
+      "maxDuration": 30
+    },
+    "api/toggle-agent.ts": {
+      "maxDuration": 15
+    },
+    "api/update-agent.ts": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "SUPABASE_URL": "@supabase-url",
+    "SUPABASE_SERVICE_ROLE_KEY": "@supabase-service-role-key",
+    "BLAND_API_KEY": "@bland-api-key"
+  }
+}

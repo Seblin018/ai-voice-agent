@@ -13,6 +13,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@supabase/supabase-js": "^2.75.0",
     "@tanstack/react-query": "^5.90.2",
+    "@vercel/node": "^5.3.26",
     "@vercel/speed-insights": "^1.2.0",
     "axios": "^1.12.2",
     "lucide-react": "^0.545.0",

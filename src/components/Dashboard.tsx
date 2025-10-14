@@ -1,10 +1,111 @@
-import { CheckCircle, DollarSign, TrendingUp, Clock, Phone, Calendar as CalendarIcon, Shield, ArrowRight, BarChart3, Settings, Users, Plus, Crown, Building2, Loader2 } from 'lucide-react';
+import { CheckCircle, DollarSign, TrendingUp, Clock, Phone, Calendar as CalendarIcon, Shield, ArrowRight, BarChart3, Settings, Users, Plus, Crown, Building2, Loader2, Play, Pause, Volume2, FileText, ExternalLink } from 'lucide-react';
 import PageHeader from './PageHeader';
 import { useBusinessData } from '../hooks/useBusinessData';
 import EmptyState from './EmptyState';
+import { useState } from 'react';
 
 interface DashboardProps {
   data?: any; // Keeping this for compatibility but we'll use our own data
+}
+
+// Audio Player Component
+function AudioPlayer({ recordingUrl, callId }: { recordingUrl: string; callId: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handlePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    setCurrentTime(e.currentTarget.currentTime);
+  };
+
+  const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    setDuration(e.currentTarget.duration);
+  };
+
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+      <button
+        onClick={handlePlayPause}
+        disabled={isLoading}
+        className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+      >
+        {isLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : isPlaying ? (
+          <Pause className="h-4 w-4" />
+        ) : (
+          <Play className="h-4 w-4" />
+        )}
+      </button>
+      
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-1">
+          <Volume2 className="h-4 w-4 text-gray-500" />
+          <span className="text-sm text-gray-600">Call Recording</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">{formatTime(currentTime)}</span>
+          <div className="flex-1 h-1 bg-gray-200 rounded-full">
+            <div 
+              className="h-1 bg-blue-600 rounded-full transition-all duration-200"
+              style={{ width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' }}
+            />
+          </div>
+          <span className="text-xs text-gray-500">{formatTime(duration)}</span>
+        </div>
+      </div>
+      
+      <audio
+        src={recordingUrl}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onLoadStart={() => setIsLoading(true)}
+        onCanPlay={() => setIsLoading(false)}
+        onEnded={() => setIsPlaying(false)}
+        className="hidden"
+      />
+    </div>
+  );
+}
+
+// Transcript Viewer Component
+function TranscriptViewer({ transcript, callId }: { transcript: string; callId: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showFullTranscript, setShowFullTranscript] = useState(false);
+
+  const truncatedTranscript = transcript.length > 200 ? transcript.substring(0, 200) + '...' : transcript;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <FileText className="h-4 w-4 text-gray-500" />
+        <span className="text-sm font-medium text-gray-700">Call Transcript</span>
+        <button
+          onClick={() => setShowFullTranscript(!showFullTranscript)}
+          className="text-xs text-blue-600 hover:text-blue-700"
+        >
+          {showFullTranscript ? 'Show Less' : 'Show Full'}
+        </button>
+      </div>
+      
+      <div className="p-3 bg-gray-50 rounded-lg">
+        <p className="text-sm text-gray-700 leading-relaxed">
+          {showFullTranscript ? transcript : truncatedTranscript}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default function Dashboard({ data: _data }: DashboardProps) {
@@ -115,7 +216,7 @@ export default function Dashboard({ data: _data }: DashboardProps) {
             <EmptyState
               icon={Phone}
               title="No calls yet"
-              description="Your AI will start capturing calls once activated. Set up your AI agent to begin tracking calls and appointments."
+              description="Forward your phone to activate! Your AI will start capturing calls once you set up call forwarding to your dedicated AI phone number."
               action={{
                 label: 'Set Up AI Agent',
                 onClick: () => console.log('Set up AI agent'),
@@ -258,68 +359,70 @@ export default function Dashboard({ data: _data }: DashboardProps) {
               <h3 className="text-lg font-semibold text-gray-900">Recent Call Activity</h3>
             </div>
             
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date & Time
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Caller
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Duration
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Outcome
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Service Needed
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Appointment
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Notes
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {metrics.calls.map((call) => (
-                    <tr key={call.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-gray-400" />
+            <div className="divide-y divide-gray-200">
+              {metrics.calls.map((call) => (
+                <div key={call.id} className="p-6 hover:bg-gray-50 transition-colors duration-200">
+                  {/* Call Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm font-medium text-gray-900">
                           {formatTime(call.created_at)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {call.caller_phone}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDuration(call.duration_seconds)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getOutcomeBadgeColor(call.outcome)}`}>
-                          {formatOutcome(call.outcome)}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {call.service_requested || 'Not specified'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-600">{call.caller_phone}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-500">
+                          {formatDuration(call.duration_seconds)}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getOutcomeBadgeColor(call.outcome)}`}>
+                        {formatOutcome(call.outcome)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Call Details */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Service Requested</h4>
+                      <p className="text-sm text-gray-600">{call.service_requested || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Appointment Status</h4>
+                      <p className="text-sm text-gray-600">
                         {call.outcome === 'appointment_booked' ? 'Scheduled' : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs">
-                        <div className="truncate" title={call.notes}>
-                          {call.notes || 'No notes'}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Audio Player and Transcript */}
+                  <div className="space-y-4">
+                    {call.recording_url && (
+                      <AudioPlayer recordingUrl={call.recording_url} callId={call.id} />
+                    )}
+                    
+                    {call.transcript && (
+                      <TranscriptViewer transcript={call.transcript} callId={call.id} />
+                    )}
+                  </div>
+                  
+                  {/* Notes */}
+                  {call.notes && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Notes</h4>
+                      <p className="text-sm text-gray-600">{call.notes}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
           

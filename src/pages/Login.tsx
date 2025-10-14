@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import { signIn } from '../lib/auth';
+import { supabase } from '../lib/supabase';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -32,11 +32,60 @@ export default function Login() {
     setError(null);
 
     try {
-      const { user, error } = await signIn(data.email, data.password);
-      
-      if (error) {
-        setError(error.message);
-      } else if (user) {
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (signInError) {
+        setError(signInError.message);
+        return;
+      }
+
+      if (signInData.user) {
+        // Check if business exists
+        const { data: business, error: businessCheckError } = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('user_id', signInData.user.id)
+          .single();
+        
+        // If no business exists, create one
+        if (!business) {
+          console.log('No business found, creating one...');
+          
+          const businessName = signInData.user.user_metadata?.business_name || 'My Septic Company';
+          
+          const { data: newBusiness, error: createError } = await supabase
+            .from('businesses')
+            .insert({
+              name: businessName,
+              user_id: signInData.user.id,
+              industry: 'Septic Services',
+              avg_job_value: 575,
+            })
+            .select()
+            .single();
+          
+          if (!createError && newBusiness) {
+            // Create default services
+            const defaultServices = [
+              { name: 'Emergency Pumping', price_min: 400, price_max: 600, urgency_level: 'Emergency', duration_minutes: 120 },
+              { name: 'Routine Pumping', price_min: 250, price_max: 400, urgency_level: 'Flexible', duration_minutes: 90 },
+              { name: 'Septic Inspection', price_min: 150, price_max: 250, urgency_level: 'Same Day', duration_minutes: 60 },
+              { name: 'Drain Field Repair', price_min: 800, price_max: 1500, urgency_level: 'Emergency', duration_minutes: 240 },
+              { name: 'System Installation', price_min: 3000, price_max: 8000, urgency_level: 'Flexible', duration_minutes: 480 },
+            ];
+            
+            await supabase.from('services').insert(
+              defaultServices.map(service => ({
+                ...service,
+                business_id: newBusiness.id,
+              }))
+            );
+          }
+        }
+        
         navigate('/dashboard');
       }
     } catch (err) {
