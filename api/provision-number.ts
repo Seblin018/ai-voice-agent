@@ -7,17 +7,6 @@ const supabase = createClient(
 
 const BLAND_API_KEY = process.env.BLAND_API_KEY!;
 
-interface BlandPhoneNumber {
-  phone_number: string;
-  cost: number;
-  monthly_cost: number;
-}
-
-interface BlandAgent {
-  agent_id: string;
-  phone_number: string;
-}
-
 export default async function handler(req: any, res: any) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -33,7 +22,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { business_id } = req.body;
+    const { business_id, area_code } = req.body;
     
     if (!business_id) {
       return res.status(400).json({ error: 'Missing business_id' });
@@ -41,7 +30,7 @@ export default async function handler(req: any, res: any) {
 
     console.log('Provisioning phone number for business:', business_id);
 
-    // Get business details
+    // 1. Fetch business details from Supabase
     const { data: business, error: businessError } = await supabase
       .from('businesses')
       .select('*')
@@ -53,7 +42,7 @@ export default async function handler(req: any, res: any) {
       return res.status(404).json({ error: 'Business not found' });
     }
 
-    // Search for available phone numbers
+    // 2. Search for available phone numbers
     const searchResponse = await fetch('https://api.bland.ai/v1/phone-numbers/search', {
       method: 'POST',
       headers: {
@@ -61,7 +50,7 @@ export default async function handler(req: any, res: any) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        area_code: '555', // Default area code, can be made configurable
+        area_code: area_code || '555', // Use provided area code or default
         limit: 5
       })
     });
@@ -79,7 +68,7 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'No phone numbers available' });
     }
 
-    // Purchase the first available number
+    // 3. Purchase the first available number
     const selectedNumber = availableNumbers.phone_numbers[0];
     const purchaseResponse = await fetch('https://api.bland.ai/v1/phone-numbers/purchase', {
       method: 'POST',
@@ -101,37 +90,64 @@ export default async function handler(req: any, res: any) {
     const purchaseResult = await purchaseResponse.json();
     console.log('Phone number purchased:', purchaseResult);
 
-    // Create Bland AI agent
-    const agentPrompt = `You are a professional phone receptionist for ${business.name}, a septic service company. Your job is to:
+    // 4. Create Bland AI agent with septic prompt
+    const septicPrompt = `You are a friendly and professional phone receptionist for a septic service company.
 
-1. Greet callers warmly and professionally
-2. Determine what service they need (emergency pumping, routine maintenance, inspection, drain field repair, new installation)
-3. Assess urgency (emergency = today, same-day = within 24 hours, flexible = schedule later)
-4. Collect their information:
-   - Full name
-   - Phone number (confirm it back to them)
-   - Property address
-   - Brief description of the problem
-5. Book an appointment by offering 2-3 available time slots
-6. Confirm all details before ending the call
-7. Let them know they'll receive a confirmation text/email
+Your job is to:
+1. Greet callers warmly
+2. Understand what service they need
+3. Assess the urgency
+4. Collect their information
+5. Book an appointment
+6. Confirm all details
+
+CONVERSATION FLOW:
+1. Greeting: "Thank you for calling ${business.name}. How can I help you today?"
+
+2. Listen and identify service needed:
+   - Emergency pumping (sewage backing up, toilets overflowing)
+   - Routine pumping (regular maintenance)
+   - Inspection (pre-sale, annual checkup)
+   - Drain field issues (soggy yard, slow drains)
+   - New system installation
+
+3. Assess urgency:
+   - If emergency (raw sewage, immediate problem): "I understand this is urgent. Let me get you scheduled right away."
+   - If routine: "I can help you schedule that. When works best for you?"
+
+4. Collect information:
+   - "May I have your name please?"
+   - "And what's the best phone number to reach you?"
+   - "What's the property address where you need service?"
+   - "Can you briefly describe the issue?"
+
+5. Book appointment:
+   - Offer 2-3 specific time slots
+   - "I can get a technician out tomorrow at 9am, or this afternoon at 2pm. Which works better?"
+   - Confirm the date and time
+
+6. Confirm details:
+   - "Just to confirm, I have you scheduled for [service] on [date] at [time] at [address]. Is that correct?"
+   - "You'll receive a confirmation text shortly. Our technician will call 30 minutes before arriving."
 
 IMPORTANT RULES:
-- Always be empathetic, especially for emergencies
-- If someone has raw sewage backing up, treat it as an emergency
-- Speak clearly and professionally
-- If you don't understand something, politely ask them to repeat it
-- Never make up pricing - say "Our technician will provide an exact quote on-site"
-- If asked about services you're unsure about, say "Let me have our manager call you back to discuss that"
+- Always be empathetic for emergencies
+- Speak clearly and naturally
+- If you don't understand, politely ask them to repeat
+- Never make up pricing - say "Our technician will provide a quote on-site"
+- If asked about something you're unsure of: "Let me have our manager call you back to discuss that"
+- Keep the call under 3 minutes if possible
 
-PRICING GUIDELINES:
+PRICING GUIDANCE (approximate ranges):
 - Emergency pumping: $400-600
-- Routine pumping: $250-400
+- Routine pumping: $250-400  
 - Inspections: $150-250
 - Drain field repairs: $800-1500
-- New system installation: $3000-8000+
+- New installations: $3000-8000+
 
-Say "These are approximate ranges. Final pricing depends on your specific situation."`;
+Always add: "These are approximate. The exact price depends on your specific situation."
+
+TONE: Professional but warm. You're helping someone with a stressful problem.`;
 
     const agentResponse = await fetch('https://api.bland.ai/v1/agents', {
       method: 'POST',
@@ -140,15 +156,16 @@ Say "These are approximate ranges. Final pricing depends on your specific situat
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        prompt: agentPrompt,
-        voice: 'maya',
+        prompt: septicPrompt,
+        voice_id: 11, // Professional female voice
         model: 'enhanced',
         language: 'en',
-        webhook_url: `${process.env.VERCEL_URL || 'https://ai-voice-dashboard.vercel.app'}/api/bland-webhook?business_id=${business_id}`,
+        webhook: `${process.env.VERCEL_URL || 'https://ai-voice-dashboard.vercel.app'}/api/bland-webhook?business_id=${business_id}`,
         transfer_phone_number: business.phone || selectedNumber.phone_number,
         record: true,
         wait_for_greeting: false,
         interruption_threshold: 100,
+        max_duration: 12, // 12 minutes max
       })
     });
 
@@ -161,7 +178,7 @@ Say "These are approximate ranges. Final pricing depends on your specific situat
     const agentData = await agentResponse.json();
     console.log('Agent created:', agentData);
 
-    // Link phone number to agent
+    // 5. Link the phone number to the agent
     const linkResponse = await fetch('https://api.bland.ai/v1/phone-numbers/link', {
       method: 'POST',
       headers: {
@@ -180,11 +197,11 @@ Say "These are approximate ranges. Final pricing depends on your specific situat
       return res.status(500).json({ error: 'Failed to link phone number to agent' });
     }
 
-    // Update business with phone number and agent details
+    // 6. Update Supabase businesses table
     const { error: updateError } = await supabase
       .from('businesses')
       .update({
-        bland_phone_number: selectedNumber.phone_number,
+        ai_phone_number: selectedNumber.phone_number,
         bland_agent_id: agentData.agent_id,
         ai_status: 'active',
         updated_at: new Date().toISOString()
@@ -212,12 +229,12 @@ Say "These are approximate ranges. Final pricing depends on your specific situat
       });
 
     console.log('Phone number provisioned successfully');
+    
+    // 7. Return success response
     return res.status(200).json({
       success: true,
-      phone_number: selectedNumber.phone_number,
-      agent_id: agentData.agent_id,
-      cost: selectedNumber.cost,
-      monthly_cost: selectedNumber.monthly_cost
+      phoneNumber: selectedNumber.phone_number,
+      agentId: agentData.agent_id
     });
 
   } catch (error) {
