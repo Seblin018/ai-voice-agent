@@ -1,10 +1,9 @@
-import { CheckCircle, DollarSign, TrendingUp, Clock, Phone, Calendar as CalendarIcon, Shield, ArrowRight, BarChart3, Settings, Users, Plus, Crown, Building2, Loader2, Play, Pause, Volume2, FileText, RefreshCw } from 'lucide-react';
+import { CheckCircle, DollarSign, TrendingUp, Clock, Phone, Calendar as CalendarIcon, Shield, ArrowRight, BarChart3, Settings, Users, Plus, Crown, Building2, Loader2, Play, Pause, Volume2, FileText } from 'lucide-react';
 import PageHeader from './PageHeader';
 import EmptyState from './EmptyState';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
   data?: any; // Keeping this for compatibility but we'll use our own data
@@ -21,15 +20,10 @@ interface Call {
   service_requested?: string;
   recording_url?: string;
   transcript?: string;
+  notes?: string;
   created_at: string;
 }
 
-interface Business {
-  id: string;
-  name: string;
-  avg_job_value: number;
-  ai_phone_number?: string;
-}
 
 interface Metrics {
   businessName: string;
@@ -140,11 +134,9 @@ function TranscriptViewer({ transcript }: { transcript: string; callId: string }
 
 export default function Dashboard({ data: _data }: DashboardProps) {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Fetch dashboard data
   const fetchDashboardData = async () => {
@@ -176,15 +168,6 @@ export default function Dashboard({ data: _data }: DashboardProps) {
         throw new Error('Failed to fetch calls data');
       }
 
-      // Get appointments for this business
-      const { data: appointments, error: appointmentsError } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('business_id', business.id);
-
-      if (appointmentsError) {
-        throw new Error('Failed to fetch appointments data');
-      }
 
       // Calculate metrics
       const totalCalls = calls?.length || 0;
@@ -209,12 +192,6 @@ export default function Dashboard({ data: _data }: DashboardProps) {
     }
   };
 
-  // Refresh data
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await fetchDashboardData();
-    setIsRefreshing(false);
-  };
 
   // Load data on mount
   useEffect(() => {
@@ -225,9 +202,6 @@ export default function Dashboard({ data: _data }: DashboardProps) {
     console.log("Add new call clicked");
   };
 
-  const handleGoToAIControl = () => {
-    navigate('/ai-control');
-  };
 
 
   const formatTime = (timestamp: string) => {
