@@ -61,17 +61,16 @@ export default function SignUp() {
     setError(null);
     
     try {
-      console.log('=== SIGNUP FLOW START ===');
-      console.log('Step 1: Signing up user...');
+      console.log('Signing up user...');
       
+      // Just create the user - that's it!
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
           data: {
             business_name: data.businessName
-          },
-          emailRedirectTo: `${window.location.origin}/dashboard`
+          }
         }
       });
       
@@ -82,111 +81,18 @@ export default function SignUp() {
       }
       
       if (!signUpData.user) {
-        console.error('No user returned from signup');
         setError('Failed to create user account. Please try again.');
         return;
       }
       
-      console.log('User created:', signUpData.user.id);
-      console.log('Session exists:', !!signUpData.session);
+      console.log('User created successfully');
       
-      // Check if email confirmation is required
-      if (!signUpData.session) {
-        console.log('No session - email confirmation required');
-        setSuccessType('email-confirmation');
-        setSuccess(true);
-        setTimeout(() => {
-          navigate('/verify-email');
-        }, 2000);
-        return;
-      }
-      
-      // Session exists - user is auto-confirmed
-      console.log('Session exists - setting session explicitly...');
-      
-      // Explicitly set the session
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: signUpData.session.access_token,
-        refresh_token: signUpData.session.refresh_token,
-      });
-      
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-        setError('Failed to establish session. Please try signing in.');
-        return;
-      }
-      
-      console.log('Session set successfully');
-      
-      // Wait a moment for session to propagate
-      console.log('Waiting for session to propagate...');
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Verify session is active
-      const { data: currentSession } = await supabase.auth.getSession();
-      console.log('Current session:', currentSession.session?.user?.id);
-      
-      if (!currentSession.session) {
-        console.error('Session not established');
-        setError('Session not established. Please try signing in.');
-        return;
-      }
-      
-      console.log('Step 2: Creating business...');
-      
-      // Now create business (user should be authenticated)
-      const { data: business, error: businessError } = await supabase
-        .from('businesses')
-        .insert({
-          name: data.businessName,
-          user_id: signUpData.user.id,
-          industry: 'Septic Services',
-          avg_job_value: 575,
-        })
-        .select()
-        .single();
-      
-      if (businessError) {
-        console.error('Business creation error:', businessError);
-        console.error('Error details:', JSON.stringify(businessError, null, 2));
-        setError(`Failed to create business profile: ${businessError.message}`);
-        return;
-      }
-      
-      console.log('Business created:', business.id);
-      console.log('Step 3: Creating default services...');
-      
-      // Create default services
-      const defaultServices = [
-        { name: 'Emergency Pumping', price_min: 400, price_max: 600, urgency_level: 'Emergency', duration_minutes: 120 },
-        { name: 'Routine Pumping', price_min: 250, price_max: 400, urgency_level: 'Flexible', duration_minutes: 90 },
-        { name: 'Septic Inspection', price_min: 150, price_max: 250, urgency_level: 'Same Day', duration_minutes: 60 },
-        { name: 'Drain Field Repair', price_min: 800, price_max: 1500, urgency_level: 'Emergency', duration_minutes: 240 },
-        { name: 'System Installation', price_min: 3000, price_max: 8000, urgency_level: 'Flexible', duration_minutes: 480 },
-      ];
-      
-      const { error: servicesError } = await supabase.from('services').insert(
-        defaultServices.map(service => ({
-          ...service,
-          business_id: business.id,
-        }))
-      );
-      
-      if (servicesError) {
-        console.error('Services creation error:', servicesError);
-        // Don't fail signup if services fail
-      } else {
-        console.log('Default services created');
-      }
-      
-      console.log('=== SIGNUP FLOW COMPLETE ===');
-      console.log('Redirecting to dashboard...');
-      
-      setSuccessType('auto-confirmed');
+      // Success - show message and redirect to verify email
       setSuccess(true);
+      setSuccessType('email-confirmation');
       
       setTimeout(() => {
-        navigate('/dashboard');
+        navigate('/verify-email');
       }, 2000);
       
     } catch (err) {
