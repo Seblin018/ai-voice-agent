@@ -14,8 +14,7 @@
     }
   },
   "env": {
-    "SUPABASE_URL": "@supabase-url",
-    "SUPABASE_SERVICE_ROLE_KEY": "@supabase-service-role-key",
-    "BLAND_API_KEY": "@bland-api-key"
+    "SUPABASE_URL": "https://bagvthhhwhratkxotvju.supabase.co",
+    "BLAND_API_KEY": "org_7c143bebaafcdc02251d2c7d559668cc628f0bc920c585270661f16e40b71b037a4ae3db76afea08d9a169"
   }
 }

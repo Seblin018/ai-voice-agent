@@ -30,7 +30,7 @@ interface BusinessData {
 }
 
 export default function AIControl() {
-  const { user } = useAuth();
+  const { } = useAuth();
   const [business, setBusiness] = useState<BusinessData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isToggling, setIsToggling] = useState(false);
@@ -681,7 +681,6 @@ export default function AIControl() {
         {showForwardingModal && business?.bland_phone_number && (
           <CallForwardingInstructions
             aiPhoneNumber={business.bland_phone_number}
-            isOpen={showForwardingModal}
             onClose={() => setShowForwardingModal(false)}
             showAsModal={true}
           />

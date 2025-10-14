@@ -44,7 +44,7 @@ export default function Login() {
 
       if (signInData.user) {
         // Check if business exists
-        const { data: business, error: businessCheckError } = await supabase
+        const { data: business } = await supabase
           .from('businesses')
           .select('*')
           .eq('user_id', signInData.user.id)

@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 
 export async function ensureBusinessExists(userId: string, businessName?: string) {
   // Check if business already exists
-  const { data: existingBusiness, error: checkError } = await supabase
+  const { data: existingBusiness } = await supabase
     .from('businesses')
     .select('*')
     .eq('user_id', userId)

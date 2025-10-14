@@ -1,4 +1,4 @@
-import { CheckCircle, DollarSign, TrendingUp, Clock, Phone, Calendar as CalendarIcon, Shield, ArrowRight, BarChart3, Settings, Users, Plus, Crown, Building2, Loader2, Play, Pause, Volume2, FileText, ExternalLink } from 'lucide-react';
+import { CheckCircle, DollarSign, TrendingUp, Clock, Phone, Calendar as CalendarIcon, Shield, ArrowRight, BarChart3, Settings, Users, Plus, Crown, Building2, Loader2, Play, Pause, Volume2, FileText } from 'lucide-react';
 import PageHeader from './PageHeader';
 import { useBusinessData } from '../hooks/useBusinessData';
 import EmptyState from './EmptyState';
@@ -9,7 +9,7 @@ interface DashboardProps {
 }
 
 // Audio Player Component
-function AudioPlayer({ recordingUrl, callId }: { recordingUrl: string; callId: string }) {
+function AudioPlayer({ recordingUrl }: { recordingUrl: string; callId: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -80,8 +80,7 @@ function AudioPlayer({ recordingUrl, callId }: { recordingUrl: string; callId: s
 }
 
 // Transcript Viewer Component
-function TranscriptViewer({ transcript, callId }: { transcript: string; callId: string }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+function TranscriptViewer({ transcript }: { transcript: string; callId: string }) {
   const [showFullTranscript, setShowFullTranscript] = useState(false);
 
   const truncatedTranscript = transcript.length > 200 ? transcript.substring(0, 200) + '...' : transcript;

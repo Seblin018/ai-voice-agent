@@ -14,7 +14,6 @@ import {
 
 interface CallForwardingInstructionsProps {
   aiPhoneNumber: string;
-  isOpen?: boolean;
   onClose?: () => void;
   showAsModal?: boolean;
 }
@@ -118,7 +117,6 @@ const carriers: Carrier[] = [
 
 export default function CallForwardingInstructions({ 
   aiPhoneNumber, 
-  isOpen = false, 
   onClose, 
   showAsModal = false 
 }: CallForwardingInstructionsProps) {

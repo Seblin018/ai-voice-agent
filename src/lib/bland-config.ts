@@ -31,7 +31,7 @@ PRICING GUIDELINES:
 Say "These are approximate ranges. Final pricing depends on your specific situation."
 `;
 
-export const createBlandAgent = async (businessId: string, businessName: string, phoneNumber: string) => {
+export const createBlandAgent = async (businessId: string, _businessName: string, phoneNumber: string) => {
   const response = await fetch('https://api.bland.ai/v1/agents', {
     method: 'POST',
     headers: {

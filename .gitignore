@@ -17,3 +17,4 @@ build/
 
 # Node.js binary (local development)
 node-v20.11.0-darwin-x64/
+.vercel
