@@ -20,17 +20,18 @@ import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
 import CallForwardingInstructions from '../components/CallForwardingInstructions';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface BusinessData {
   id: string;
   name: string;
-  bland_phone_number?: string;
+  ai_phone_number?: string;
   bland_agent_id?: string;
-  ai_status: 'active' | 'inactive';
+  ai_enabled: boolean;
 }
 
 export default function AIControl() {
-  const { } = useAuth();
+  const { user } = useAuth();
   const [business, setBusiness] = useState<BusinessData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isToggling, setIsToggling] = useState(false);
@@ -40,22 +41,36 @@ export default function AIControl() {
   const [showTestCallModal, setShowTestCallModal] = useState(false);
   const [showForwardingModal, setShowForwardingModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Load business data on component mount
   useEffect(() => {
     const loadBusinessData = async () => {
+      if (!user) return;
+      
       try {
         setIsLoading(true);
-        // In a real app, you'd fetch from your API
-        // For now, we'll simulate the data
-        const mockBusiness: BusinessData = {
-          id: 'business-123',
-          name: 'Reliable Septic Services',
-          bland_phone_number: undefined, // No phone number yet
-          bland_agent_id: undefined,
-          ai_status: 'inactive'
-        };
-        setBusiness(mockBusiness);
+        setError(null);
+        
+        // Fetch business data from Supabase
+        const { data: businessData, error: businessError } = await supabase
+          .from('businesses')
+          .select('id, name, ai_phone_number, bland_agent_id, ai_enabled')
+          .eq('user_id', user.id)
+          .single();
+
+        if (businessError) {
+          console.error('Error fetching business:', businessError);
+          setError('Failed to load business data');
+          return;
+        }
+
+        if (!businessData) {
+          setError('No business found for this user');
+          return;
+        }
+
+        setBusiness(businessData);
       } catch (err) {
         setError('Failed to load business data');
         console.error('Error loading business data:', err);
@@ -65,12 +80,15 @@ export default function AIControl() {
     };
 
     loadBusinessData();
-  }, []);
+  }, [user]);
 
   const provisionPhoneNumber = async () => {
+    if (!business) return;
+    
     try {
       setIsProvisioning(true);
       setError(null);
+      setSuccessMessage(null);
       
       const response = await fetch('/api/provision-number', {
         method: 'POST',
@@ -78,12 +96,13 @@ export default function AIControl() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          business_id: business?.id
+          business_id: business.id
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to provision phone number');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to provision phone number');
       }
 
       const data = await response.json();
@@ -91,13 +110,15 @@ export default function AIControl() {
       // Update business data with new phone number
       setBusiness(prev => prev ? {
         ...prev,
-        bland_phone_number: data.phone_number,
-        bland_agent_id: data.agent_id,
-        ai_status: 'active'
+        ai_phone_number: data.phoneNumber,
+        bland_agent_id: data.agentId,
+        ai_enabled: true
       } : null);
 
+      setSuccessMessage('AI agent activated successfully! Your dedicated phone number is ready.');
+      
     } catch (err) {
-      setError('Failed to provision phone number. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to provision phone number. Please try again.');
       console.error('Error provisioning phone number:', err);
     } finally {
       setIsProvisioning(false);
@@ -110,22 +131,25 @@ export default function AIControl() {
       return;
     }
 
-    if (business.ai_status === 'active') {
+    if (business.ai_enabled) {
       setShowConfirmModal(true);
     } else {
-      await toggleAIStatus('active');
+      await toggleAIStatus(true);
     }
   };
 
   const confirmTurnOff = async () => {
     setShowConfirmModal(false);
-    await toggleAIStatus('inactive');
+    await toggleAIStatus(false);
   };
 
-  const toggleAIStatus = async (newStatus: 'active' | 'inactive') => {
+  const toggleAIStatus = async (enabled: boolean) => {
+    if (!business) return;
+    
     try {
       setIsToggling(true);
       setError(null);
+      setSuccessMessage(null);
 
       const response = await fetch('/api/toggle-agent', {
         method: 'POST',
@@ -133,57 +157,47 @@ export default function AIControl() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          business_id: business?.id,
-          status: newStatus
+          business_id: business.id,
+          enabled: enabled
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to toggle AI agent');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to toggle AI agent');
       }
 
       // Update business status
       setBusiness(prev => prev ? {
         ...prev,
-        ai_status: newStatus
+        ai_enabled: enabled
       } : null);
 
+      setSuccessMessage(`AI agent ${enabled ? 'enabled' : 'disabled'} successfully!`);
+
     } catch (err) {
-      setError('Failed to toggle AI agent. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to toggle AI agent. Please try again.');
       console.error('Error toggling AI agent:', err);
     } finally {
       setIsToggling(false);
     }
   };
 
-  const testCall = async () => {
-    if (!business?.bland_phone_number) {
+  const testCall = () => {
+    if (!business?.ai_phone_number) {
       setError('No phone number available for testing');
       return;
     }
 
-    try {
-      setShowTestCallModal(true);
-      setError(null);
-      
-      // In a real implementation, you'd call a test API
-      // For now, we'll simulate the test call
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      setShowTestCallModal(false);
-      // You could show a success message here
-      
-    } catch (err) {
-      setError('Test call failed. Please try again.');
-      console.error('Error testing call:', err);
-      setShowTestCallModal(false);
-    }
+    // Open phone dialer with the AI phone number
+    window.open(`tel:${business.ai_phone_number}`, '_self');
   };
 
   const copyPhoneNumber = () => {
-    if (business?.bland_phone_number) {
-      navigator.clipboard.writeText(business.bland_phone_number);
-      // You could show a toast notification here
+    if (business?.ai_phone_number) {
+      navigator.clipboard.writeText(business.ai_phone_number);
+      setSuccessMessage('Phone number copied to clipboard!');
+      setTimeout(() => setSuccessMessage(null), 3000);
     }
   };
 
@@ -258,6 +272,16 @@ export default function AIControl() {
           ]}
         />
 
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <p className="text-green-800">{successMessage}</p>
+            </div>
+          </div>
+        )}
+
         {/* Error Message */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -269,7 +293,7 @@ export default function AIControl() {
         )}
 
         {/* No Phone Number - Show Activation */}
-        {!business.bland_phone_number && (
+        {!business.ai_phone_number && (
           <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-8 mb-8">
             <div className="text-center">
               <Bot className="h-16 w-16 text-gray-400 mx-auto mb-4" />
@@ -311,17 +335,17 @@ export default function AIControl() {
         )}
 
         {/* Has Phone Number - Show Control Panel */}
-        {business.bland_phone_number && (
+        {business.ai_phone_number && (
           <>
             {/* Master On/Off Toggle */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-8 mb-8">
               <div className="text-center">
                 <div className="flex items-center justify-center gap-4 mb-6">
-                  <Bot className={`h-12 w-12 ${business.ai_status === 'active' ? 'text-green-600' : 'text-red-600'}`} />
+                  <Bot className={`h-12 w-12 ${business.ai_enabled ? 'text-green-600' : 'text-red-600'}`} />
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900">AI Voice Agent</h2>
-                    <p className={`text-lg font-semibold ${business.ai_status === 'active' ? 'text-green-600' : 'text-red-600'}`}>
-                      AI is currently: {business.ai_status === 'active' ? 'Active' : 'Inactive'}
+                    <p className={`text-lg font-semibold ${business.ai_enabled ? 'text-green-600' : 'text-red-600'}`}>
+                      AI is currently: {business.ai_enabled ? 'Active' : 'Inactive'}
                     </p>
                   </div>
                 </div>
@@ -330,26 +354,26 @@ export default function AIControl() {
                   onClick={handleToggleAI}
                   disabled={isToggling}
                   className={`relative inline-flex h-16 w-32 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-4 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed ${
-                    business.ai_status === 'active'
+                    business.ai_enabled
                       ? 'bg-green-600 focus:ring-green-300' 
                       : 'bg-red-600 focus:ring-red-300'
                   }`}
                 >
                   <span
                     className={`inline-block h-12 w-12 transform rounded-full bg-white transition-transform duration-200 flex items-center justify-center ${
-                      business.ai_status === 'active' ? 'translate-x-16' : 'translate-x-2'
+                      business.ai_enabled ? 'translate-x-16' : 'translate-x-2'
                     }`}
                   >
                     {isToggling ? (
                       <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
                     ) : (
-                      <Power className={`h-6 w-6 ${business.ai_status === 'active' ? 'text-green-600' : 'text-red-600'}`} />
+                      <Power className={`h-6 w-6 ${business.ai_enabled ? 'text-green-600' : 'text-red-600'}`} />
                     )}
                   </span>
                 </button>
                 
                 <p className="mt-4 text-sm text-gray-500">
-                  {business.ai_status === 'active' ? 'Click to turn off AI agent' : 'Click to turn on AI agent'}
+                  {business.ai_enabled ? 'Click to turn off AI agent' : 'Click to turn on AI agent'}
                 </p>
               </div>
             </div>
@@ -360,7 +384,7 @@ export default function AIControl() {
                 <Phone className="h-12 w-12 mx-auto mb-4" />
                 <h2 className="text-2xl font-bold mb-2">Your AI Phone Number</h2>
                 <div className="flex items-center justify-center gap-4 mb-4">
-                  <span className="text-3xl font-bold">{business.bland_phone_number}</span>
+                  <span className="text-3xl font-bold">{business.ai_phone_number}</span>
                   <button
                     onClick={copyPhoneNumber}
                     className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-colors duration-200"
@@ -372,23 +396,32 @@ export default function AIControl() {
                 <p className="text-blue-100 mb-6">
                   Forward your business calls to this number to activate your AI agent
                 </p>
-                <button
-                  onClick={() => setShowForwardingModal(true)}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-white text-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition-colors duration-200"
-                >
-                  <Settings className="h-5 w-5" />
-                  Setup Call Forwarding
-                </button>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    onClick={() => setShowForwardingModal(true)}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-white text-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition-colors duration-200"
+                  >
+                    <Settings className="h-5 w-5" />
+                    Setup Call Forwarding
+                  </button>
+                  <button
+                    onClick={testCall}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors duration-200"
+                  >
+                    <Phone className="h-5 w-5" />
+                    Test Call
+                  </button>
+                </div>
               </div>
             </div>
           </>
         )}
 
         {/* Show control panel only if phone number exists */}
-        {business.bland_phone_number && (
+        {business.ai_phone_number && (
           <>
             {/* AI Status - Show Empty State if Inactive */}
-            {business.ai_status === 'inactive' && (
+            {!business.ai_enabled && (
               <EmptyState
                 icon={Bot}
                 title="AI Agent is Inactive"
@@ -402,7 +435,7 @@ export default function AIControl() {
             )}
 
             {/* Show Control Panel if Active */}
-            {business.ai_status === 'active' && (
+            {business.ai_enabled && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Schedule Settings */}
                 <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
@@ -449,7 +482,7 @@ export default function AIControl() {
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-600 mb-1">Dedicated AI Phone Number</p>
                       <div className="flex items-center gap-2">
-                        <p className="text-2xl font-bold text-gray-900">{business.bland_phone_number}</p>
+                        <p className="text-2xl font-bold text-gray-900">{business.ai_phone_number}</p>
                         <button
                           onClick={copyPhoneNumber}
                           className="p-1 hover:bg-gray-200 rounded transition-colors duration-200"
@@ -469,7 +502,7 @@ export default function AIControl() {
                         </li>
                         <li className="flex items-start gap-2">
                           <span className="flex-shrink-0 w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-semibold">2</span>
-                          Request to forward calls to {business.bland_phone_number}
+                          Request to forward calls to {business.ai_phone_number}
                         </li>
                         <li className="flex items-start gap-2">
                           <span className="flex-shrink-0 w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-semibold">3</span>
@@ -657,30 +690,10 @@ export default function AIControl() {
           </div>
         )}
 
-        {/* Test Call Modal */}
-        {showTestCallModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white rounded-xl p-6 max-w-md mx-4">
-              <div className="text-center">
-                <div className="flex items-center justify-center mb-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Testing Call</h3>
-                <p className="text-gray-600 mb-4">Calling {business?.bland_phone_number} to test your AI agent...</p>
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    <strong>What to expect:</strong> Your AI agent should answer and ask how it can help you.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Call Forwarding Instructions Modal */}
-        {showForwardingModal && business?.bland_phone_number && (
+        {showForwardingModal && business?.ai_phone_number && (
           <CallForwardingInstructions
-            aiPhoneNumber={business.bland_phone_number}
+            aiPhoneNumber={business.ai_phone_number}
             onClose={() => setShowForwardingModal(false)}
             showAsModal={true}
           />
