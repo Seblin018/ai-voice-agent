@@ -1,54 +1,50 @@
 import { createClient } from '@supabase/supabase-js';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// Initialize Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-interface ProvisionNumberRequest {
-  business_id: string;
-  area_code?: string; // Optional area code preference
-}
+const BLAND_API_KEY = process.env.BLAND_API_KEY!;
 
 interface BlandPhoneNumber {
   phone_number: string;
-  area_code: string;
+  cost: number;
   monthly_cost: number;
-  setup_cost: number;
 }
 
 interface BlandAgent {
   agent_id: string;
   phone_number: string;
-  status: string;
 }
 
-interface BlandPhoneSearchResponse {
-  phone_numbers: BlandPhoneNumber[];
-}
+export default async function handler(req: any, res: any) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Only allow POST requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { business_id, area_code }: ProvisionNumberRequest = req.body;
-
-    // Validate required fields
+    const { business_id } = req.body;
+    
     if (!business_id) {
       return res.status(400).json({ error: 'Missing business_id' });
     }
 
     console.log('Provisioning phone number for business:', business_id);
 
-    // Get business information
+    // Get business details
     const { data: business, error: businessError } = await supabase
       .from('businesses')
-      .select('id, name, industry, services, phone')
+      .select('*')
       .eq('id', business_id)
       .single();
 
@@ -57,44 +53,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: 'Business not found' });
     }
 
-    // Step 1: Search for available phone numbers
-    console.log('Searching for available phone numbers...');
-    const searchParams = new URLSearchParams({
-      area_code: area_code || '555', // Default area code if not specified
-      limit: '10'
-    });
-
-    const searchResponse = await fetch(`https://api.bland.ai/v1/phone-numbers/search?${searchParams}`, {
-      method: 'GET',
+    // Search for available phone numbers
+    const searchResponse = await fetch('https://api.bland.ai/v1/phone-numbers/search', {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.BLAND_API_KEY}`,
+        'Authorization': `Bearer ${BLAND_API_KEY}`,
         'Content-Type': 'application/json'
-      }
+      },
+      body: JSON.stringify({
+        area_code: '555', // Default area code, can be made configurable
+        limit: 5
+      })
     });
 
     if (!searchResponse.ok) {
-      const errorData = await searchResponse.text();
-      console.error('Error searching phone numbers:', errorData);
+      const errorText = await searchResponse.text();
+      console.error('Error searching phone numbers:', errorText);
       return res.status(500).json({ error: 'Failed to search phone numbers' });
     }
 
-    const searchData: BlandPhoneSearchResponse = await searchResponse.json();
-    
-    if (!searchData.phone_numbers || searchData.phone_numbers.length === 0) {
-      console.error('No phone numbers available');
-      return res.status(400).json({ error: 'No phone numbers available in the requested area' });
+    const availableNumbers = await searchResponse.json();
+    console.log('Available numbers:', availableNumbers);
+
+    if (!availableNumbers.phone_numbers || availableNumbers.phone_numbers.length === 0) {
+      return res.status(400).json({ error: 'No phone numbers available' });
     }
 
-    // Select the first available number
-    const selectedNumber = searchData.phone_numbers[0];
-    console.log('Selected phone number:', selectedNumber.phone_number);
-
-    // Step 2: Purchase the phone number
-    console.log('Purchasing phone number...');
+    // Purchase the first available number
+    const selectedNumber = availableNumbers.phone_numbers[0];
     const purchaseResponse = await fetch('https://api.bland.ai/v1/phone-numbers/purchase', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.BLAND_API_KEY}`,
+        'Authorization': `Bearer ${BLAND_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -103,123 +93,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     if (!purchaseResponse.ok) {
-      const errorData = await purchaseResponse.text();
-      console.error('Error purchasing phone number:', errorData);
+      const errorText = await purchaseResponse.text();
+      console.error('Error purchasing phone number:', errorText);
       return res.status(500).json({ error: 'Failed to purchase phone number' });
     }
 
-    const purchaseData = await purchaseResponse.json();
-    console.log('Phone number purchased successfully:', purchaseData);
+    const purchaseResult = await purchaseResponse.json();
+    console.log('Phone number purchased:', purchaseResult);
 
-    // Step 3: Create Bland AI agent
-    console.log('Creating Bland AI agent...');
-    const agentResponse = await fetch('https://api.bland.ai/v1/agents', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.BLAND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: `${business.name} AI Assistant`,
-        prompt: createSystemPrompt(business.name, business.industry, business.services),
-        voice: 'maya', // Professional female voice
-        model: 'enhanced', // Better quality
-        language: 'en',
-        webhook_url: `${process.env.VERCEL_URL || 'https://your-domain.vercel.app'}/api/bland-webhook?business_id=${business_id}`,
-        transfer_phone_number: business.phone, // Fallback to business phone
-        record: true,
-        wait_for_greeting: false,
-        interruption_threshold: 100,
-        metadata: {
-          business_id: business_id,
-          business_name: business.name,
-          industry: business.industry
-        }
-      })
-    });
+    // Create Bland AI agent
+    const agentPrompt = `You are a professional phone receptionist for ${business.name}, a septic service company. Your job is to:
 
-    if (!agentResponse.ok) {
-      const errorData = await agentResponse.text();
-      console.error('Error creating Bland AI agent:', errorData);
-      return res.status(500).json({ error: 'Failed to create Bland AI agent' });
-    }
-
-    const agentData: BlandAgent = await agentResponse.json();
-    console.log('Bland AI agent created successfully:', agentData.agent_id);
-
-    // Step 4: Link phone number to agent
-    console.log('Linking phone number to agent...');
-    const linkResponse = await fetch(`https://api.bland.ai/v1/phone-numbers/${selectedNumber.phone_number}/link`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.BLAND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        agent_id: agentData.agent_id
-      })
-    });
-
-    if (!linkResponse.ok) {
-      const errorData = await linkResponse.text();
-      console.error('Error linking phone number to agent:', errorData);
-      return res.status(500).json({ error: 'Failed to link phone number to agent' });
-    }
-
-    console.log('Phone number linked to agent successfully');
-
-    // Step 5: Update business record in Supabase
-    const { error: updateError } = await supabase
-      .from('businesses')
-      .update({
-        bland_agent_id: agentData.agent_id,
-        bland_phone_number: selectedNumber.phone_number,
-        ai_status: 'active',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', business_id);
-
-    if (updateError) {
-      console.error('Error updating business record:', updateError);
-      return res.status(500).json({ error: 'Failed to update business record' });
-    }
-
-    // Log the provisioning activity
-    await supabase
-      .from('ai_activity_log')
-      .insert({
-        business_id: business_id,
-        action: 'phone_number_provisioned',
-        details: `Phone number ${selectedNumber.phone_number} provisioned and linked to agent ${agentData.agent_id}`,
-        created_at: new Date().toISOString()
-      });
-
-    console.log('Phone number provisioning completed successfully for business:', business_id);
-
-    return res.status(200).json({
-      success: true,
-      phone_number: selectedNumber.phone_number,
-      agent_id: agentData.agent_id,
-      monthly_cost: selectedNumber.monthly_cost,
-      setup_cost: selectedNumber.setup_cost,
-      message: 'Phone number provisioned and AI agent created successfully'
-    });
-
-  } catch (error) {
-    console.error('Provision number error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
-// Helper function to create system prompt based on business info
-function createSystemPrompt(businessName: string, industry: string, services: any[]): string {
-  const servicesList = services?.map(service => 
-    `- ${service.name}: $${service.price_min}-$${service.price_max} (${service.urgency} priority)`
-  ).join('\n') || '';
-
-  return `You are a professional phone receptionist for ${businessName}, a ${industry} business.
-
-Your role is to:
 1. Greet callers warmly and professionally
 2. Determine what service they need (emergency pumping, routine maintenance, inspection, drain field repair, new installation)
 3. Assess urgency (emergency = today, same-day = within 24 hours, flexible = schedule later)
@@ -240,9 +124,6 @@ IMPORTANT RULES:
 - Never make up pricing - say "Our technician will provide an exact quote on-site"
 - If asked about services you're unsure about, say "Let me have our manager call you back to discuss that"
 
-Available Services:
-${servicesList}
-
 PRICING GUIDELINES:
 - Emergency pumping: $400-600
 - Routine pumping: $250-400
@@ -250,10 +131,97 @@ PRICING GUIDELINES:
 - Drain field repairs: $800-1500
 - New system installation: $3000-8000+
 
-Say "These are approximate ranges. Final pricing depends on your specific situation."
+Say "These are approximate ranges. Final pricing depends on your specific situation."`;
 
-Emergency keywords: urgent, emergency, broken, not working, overflow, backup, flooding
-Appointment keywords: schedule, book, appointment, available, time, date, when
+    const agentResponse = await fetch('https://api.bland.ai/v1/agents', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${BLAND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        prompt: agentPrompt,
+        voice: 'maya',
+        model: 'enhanced',
+        language: 'en',
+        webhook_url: `${process.env.VERCEL_URL || 'https://ai-voice-dashboard.vercel.app'}/api/bland-webhook?business_id=${business_id}`,
+        transfer_phone_number: business.phone || selectedNumber.phone_number,
+        record: true,
+        wait_for_greeting: false,
+        interruption_threshold: 100,
+      })
+    });
 
-Remember: You represent ${businessName} and should maintain our professional standards.`;
+    if (!agentResponse.ok) {
+      const errorText = await agentResponse.text();
+      console.error('Error creating agent:', errorText);
+      return res.status(500).json({ error: 'Failed to create AI agent' });
+    }
+
+    const agentData = await agentResponse.json();
+    console.log('Agent created:', agentData);
+
+    // Link phone number to agent
+    const linkResponse = await fetch('https://api.bland.ai/v1/phone-numbers/link', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${BLAND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        phone_number: selectedNumber.phone_number,
+        agent_id: agentData.agent_id
+      })
+    });
+
+    if (!linkResponse.ok) {
+      const errorText = await linkResponse.text();
+      console.error('Error linking phone number to agent:', errorText);
+      return res.status(500).json({ error: 'Failed to link phone number to agent' });
+    }
+
+    // Update business with phone number and agent details
+    const { error: updateError } = await supabase
+      .from('businesses')
+      .update({
+        bland_phone_number: selectedNumber.phone_number,
+        bland_agent_id: agentData.agent_id,
+        ai_status: 'active',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', business_id);
+
+    if (updateError) {
+      console.error('Error updating business:', updateError);
+      return res.status(500).json({ error: 'Failed to update business record' });
+    }
+
+    // Log activity
+    await supabase
+      .from('business_activity_log')
+      .insert({
+        business_id,
+        activity_type: 'ai_activated',
+        description: `AI agent activated with phone number ${selectedNumber.phone_number}`,
+        metadata: {
+          phone_number: selectedNumber.phone_number,
+          agent_id: agentData.agent_id,
+          cost: selectedNumber.cost
+        },
+        created_at: new Date().toISOString()
+      });
+
+    console.log('Phone number provisioned successfully');
+    return res.status(200).json({
+      success: true,
+      phone_number: selectedNumber.phone_number,
+      agent_id: agentData.agent_id,
+      cost: selectedNumber.cost,
+      monthly_cost: selectedNumber.monthly_cost
+    });
+
+  } catch (error) {
+    console.error('Provisioning error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 }

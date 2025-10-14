@@ -1,30 +1,46 @@
-# AI Voice Agent API
+# Bland.ai Integration API
 
-This directory contains Vercel Serverless Functions for managing Bland AI voice agents.
+This directory contains Vercel serverless functions for integrating with Bland.ai's AI phone agent service.
 
-## Endpoints
+## Environment Variables Required
+
+```bash
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+BLAND_API_KEY=your_bland_api_key
+```
+
+## API Endpoints
 
 ### 1. `/api/bland-webhook.ts`
-**Purpose**: Handles incoming webhooks from Bland AI when calls complete
+**Purpose**: Handles incoming webhooks from Bland.ai when calls complete
 
-**Method**: POST  
-**Authentication**: None (webhook endpoint)
+**Method**: POST
+
+**Query Parameters**:
+- `business_id`: The ID of the business that received the call
+
+**Request Body**: Bland.ai webhook payload containing:
+- `call_id`: Unique identifier for the call
+- `from`: Caller's phone number
+- `to`: Business phone number
+- `duration`: Call duration in seconds
+- `recording_url`: URL to call recording (optional)
+- `transcript`: Call transcript (optional)
+- `concatenated_transcript`: Full conversation transcript (optional)
+- `variables`: Extracted data like name, service, urgency, etc.
+
+**Response**: 200 OK with success confirmation
+
+### 2. `/api/provision-number.ts`
+**Purpose**: Provisions a new phone number and creates an AI agent for a business
+
+**Method**: POST
 
 **Request Body**:
 ```json
 {
-  "call_id": "string",
-  "status": "completed" | "failed" | "no-answer",
-  "duration": number,
-  "recording_url": "string (optional)",
-  "transcript": "string (optional)",
-  "caller_phone": "string",
-  "business_phone": "string",
-  "agent_id": "string",
-  "metadata": {
-    "business_id": "string (optional)",
-    "user_id": "string (optional)"
-  }
+  "business_id": "uuid"
 }
 ```
 
@@ -32,56 +48,23 @@ This directory contains Vercel Serverless Functions for managing Bland AI voice 
 ```json
 {
   "success": true,
-  "call_id": "string",
-  "outcome": "appointment_booked" | "info_request" | "hang_up"
-}
-```
-
-### 2. `/api/create-agent.ts`
-**Purpose**: Creates a new Bland AI agent when a business signs up
-
-**Method**: POST  
-**Authentication**: Required (via Supabase)
-
-**Request Body**:
-```json
-{
-  "business_id": "string",
-  "business_name": "string",
-  "business_phone": "string",
-  "industry": "string",
-  "services": [
-    {
-      "name": "string",
-      "price_min": number,
-      "price_max": number,
-      "urgency": "Emergency" | "Same Day" | "Flexible"
-    }
-  ]
-}
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "agent_id": "string",
-  "phone_number": "string",
-  "status": "string"
+  "phone_number": "+15551234567",
+  "agent_id": "agent_123",
+  "cost": 15.00,
+  "monthly_cost": 5.00
 }
 ```
 
 ### 3. `/api/toggle-agent.ts`
-**Purpose**: Turns AI agent on/off based on dashboard toggle
+**Purpose**: Enables or disables an AI agent
 
-**Method**: POST  
-**Authentication**: Required (via Supabase)
+**Method**: POST
 
 **Request Body**:
 ```json
 {
-  "business_id": "string",
-  "status": "active" | "inactive"
+  "business_id": "uuid",
+  "enabled": true
 }
 ```
 
@@ -89,26 +72,23 @@ This directory contains Vercel Serverless Functions for managing Bland AI voice 
 ```json
 {
   "success": true,
-  "status": "active" | "inactive",
-  "message": "string"
+  "enabled": true,
+  "message": "AI agent activated successfully"
 }
 ```
 
 ### 4. `/api/update-agent.ts`
-**Purpose**: Updates agent settings when user changes business info
+**Purpose**: Updates AI agent settings when business information changes
 
-**Method**: POST  
-**Authentication**: Required (via Supabase)
+**Method**: POST
 
 **Request Body**:
 ```json
 {
-  "business_id": "string",
-  "business_name": "string (optional)",
-  "business_phone": "string (optional)",
-  "industry": "string (optional)",
-  "services": "array (optional)",
-  "business_hours": "object (optional)"
+  "business_id": "uuid",
+  "business_name": "New Business Name",
+  "phone_number": "+15551234567",
+  "industry": "Septic Services"
 }
 ```
 
@@ -116,40 +96,54 @@ This directory contains Vercel Serverless Functions for managing Bland AI voice 
 ```json
 {
   "success": true,
-  "message": "AI agent updated successfully"
+  "message": "AI agent settings updated successfully"
 }
 ```
 
-## Environment Variables
+## Database Tables Used
 
-The following environment variables need to be set in Vercel:
+### `calls`
+Stores call records with:
+- `business_id`
+- `caller_phone`
+- `caller_name`
+- `start_time`
+- `end_time`
+- `duration_seconds`
+- `outcome`
+- `service_requested`
+- `recording_url`
+- `transcript`
 
-- `SUPABASE_URL`: Your Supabase project URL
-- `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key (for server-side operations)
-- `BLAND_API_KEY`: Your Bland AI API key
+### `appointments`
+Stores booked appointments with:
+- `business_id`
+- `customer_name`
+- `customer_phone`
+- `customer_address`
+- `service_type`
+- `appointment_date`
+- `status`
+- `call_id`
 
-## Database Tables
+### `businesses`
+Updated with:
+- `bland_phone_number`
+- `bland_agent_id`
+- `ai_status`
 
-These functions interact with the following Supabase tables:
-
-- `businesses`: Stores business information and Bland agent details
-- `calls`: Records of all incoming calls
-- `appointments`: Scheduled appointments from calls
-- `ai_activity_log`: Log of AI agent activities
-- `services`: Business service offerings
+### `business_activity_log`
+Logs all AI-related activities for audit trail.
 
 ## Error Handling
 
-All endpoints include comprehensive error handling:
-- Input validation
-- Database error handling
-- Bland AI API error handling
-- Proper HTTP status codes
-- Detailed error messages
+All functions include comprehensive error handling and logging. Errors are returned with appropriate HTTP status codes:
 
-## Security
+- `400`: Bad Request (missing parameters)
+- `404`: Not Found (business not found)
+- `405`: Method Not Allowed
+- `500`: Internal Server Error
 
-- All endpoints (except webhook) require authentication
-- Service role key used for database operations
-- Input sanitization and validation
-- Rate limiting handled by Vercel
+## CORS
+
+All functions include proper CORS headers for cross-origin requests.

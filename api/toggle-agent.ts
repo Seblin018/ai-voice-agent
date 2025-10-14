@@ -1,42 +1,39 @@
 import { createClient } from '@supabase/supabase-js';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// Initialize Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-interface ToggleAgentRequest {
-  business_id: string;
-  status: 'active' | 'inactive';
-}
+const BLAND_API_KEY = process.env.BLAND_API_KEY!;
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Only allow POST requests
+export default async function handler(req: any, res: any) {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { business_id, status }: ToggleAgentRequest = req.body;
-
-    // Validate required fields
-    if (!business_id || !status) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    const { business_id, enabled } = req.body;
+    
+    if (!business_id || typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'Missing business_id or enabled status' });
     }
 
-    // Validate status value
-    if (!['active', 'inactive'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status. Must be "active" or "inactive"' });
-    }
+    console.log('Toggling AI agent for business:', business_id, 'enabled:', enabled);
 
-    console.log(`Toggling AI agent for business ${business_id} to ${status}`);
-
-    // Get business info including Bland agent ID
+    // Get business details
     const { data: business, error: businessError } = await supabase
       .from('businesses')
-      .select('bland_agent_id, bland_phone_number, name')
+      .select('*')
       .eq('id', business_id)
       .single();
 
@@ -46,57 +43,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!business.bland_agent_id) {
-      return res.status(400).json({ error: 'No Bland AI agent found for this business' });
+      return res.status(400).json({ error: 'No AI agent configured for this business' });
     }
 
-    // Update agent status in Bland AI
-    const blandResponse = await fetch(`https://api.bland.ai/v1/agents/${business.bland_agent_id}`, {
+    // Update agent status in Bland
+    const updateResponse = await fetch(`https://api.bland.ai/v1/agents/${business.bland_agent_id}`, {
       method: 'PATCH',
       headers: {
-        'Authorization': `Bearer ${process.env.BLAND_API_KEY}`,
-        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${BLAND_API_KEY}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        status: status === 'active' ? 'active' : 'paused'
+        active: enabled
       })
     });
 
-    if (!blandResponse.ok) {
-      const errorData = await blandResponse.text();
-      console.error('Bland API error:', errorData);
-      return res.status(500).json({ error: 'Failed to update Bland AI agent status' });
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error('Error updating agent in Bland:', errorText);
+      return res.status(500).json({ error: 'Failed to update agent status' });
     }
 
-    // Update business record in database
+    const updateResult = await updateResponse.json();
+    console.log('Agent updated in Bland:', updateResult);
+
+    // Update database
     const { error: updateError } = await supabase
       .from('businesses')
       .update({
-        ai_status: status,
+        ai_status: enabled ? 'active' : 'inactive',
         updated_at: new Date().toISOString()
       })
       .eq('id', business_id);
 
     if (updateError) {
-      console.error('Error updating business status:', updateError);
+      console.error('Error updating business in database:', updateError);
       return res.status(500).json({ error: 'Failed to update business record' });
     }
 
-    // Log the status change
+    // Log activity
     await supabase
-      .from('ai_activity_log')
+      .from('business_activity_log')
       .insert({
-        business_id: business_id,
-        action: status === 'active' ? 'agent_activated' : 'agent_deactivated',
-        details: `AI agent ${status === 'active' ? 'activated' : 'deactivated'} for ${business.name}`,
+        business_id,
+        activity_type: enabled ? 'ai_activated' : 'ai_deactivated',
+        description: `AI agent ${enabled ? 'activated' : 'deactivated'}`,
+        metadata: {
+          agent_id: business.bland_agent_id,
+          phone_number: business.bland_phone_number,
+          enabled
+        },
         created_at: new Date().toISOString()
       });
 
-    console.log(`AI agent ${status} successfully for business ${business_id}`);
-
+    console.log('AI agent toggled successfully');
     return res.status(200).json({
       success: true,
-      status: status,
-      message: `AI agent ${status === 'active' ? 'activated' : 'deactivated'} successfully`
+      enabled,
+      message: `AI agent ${enabled ? 'activated' : 'deactivated'} successfully`
     });
 
   } catch (error) {
