@@ -1,4 +1,10 @@
 {
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ],
   "functions": {
     "api/bland-webhook.ts": {
       "maxDuration": 30

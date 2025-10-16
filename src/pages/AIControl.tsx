@@ -85,6 +85,10 @@ export default function AIControl() {
   const provisionPhoneNumber = async () => {
     if (!business) return;
     
+    console.log('=== ACTIVATING AI AGENT ===');
+    console.log('Business ID:', business.id);
+    console.log('User ID:', user?.id);
+    
     try {
       setIsProvisioning(true);
       setError(null);
