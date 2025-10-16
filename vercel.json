@@ -1,27 +1,13 @@
 {
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node@3.0.27"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     }
-  ],
-  "functions": {
-    "api/bland-webhook.ts": {
-      "maxDuration": 30
-    },
-    "api/provision-number.ts": {
-      "maxDuration": 30
-    },
-    "api/toggle-agent.ts": {
-      "maxDuration": 15
-    },
-    "api/update-agent.ts": {
-      "maxDuration": 30
-    }
-  },
-  "env": {
-    "SUPABASE_URL": "https://bagvthhhwhratkxotvju.supabase.co",
-    "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZ3Z0aGhoaHdociIsInJvbGUiOiJzZXJ2aWNlX3JvbGUiLCJpYXQiOjE3MzY1NzQ4NzMsImV4cCI6MjA1MjE1MDg3M30.placeholder",
-    "BLAND_API_KEY": "org_7c143bebaafcdc02251d2c7d559668cc628f0bc920c585270661f16e40b71b037a4ae3db76afea08d9a169"
-  }
+  ]
 }
