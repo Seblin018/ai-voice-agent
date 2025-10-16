@@ -1,3 +1,4 @@
+// Cache buster: v2
 import { useState, useEffect } from 'react';
 import { 
   Bot, 
