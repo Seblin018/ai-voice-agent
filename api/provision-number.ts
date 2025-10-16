@@ -1,6 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
+// ADD THESE TYPES:
+interface BlandAgentResponse {
+  agent_id: string;
+  [key: string]: any;
+}
+
+interface BlandPhoneResponse {
+  phone_number: string;
+  [key: string]: any;
+}
+
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY! // We'll add this env var
@@ -71,7 +82,7 @@ export default async function handler(
       return res.status(500).json({ error: 'Failed to create AI agent', details: error });
     }
 
-    const agentData = await agentResponse.json();
+    const agentData: BlandAgentResponse = await agentResponse.json();
     console.log('Agent created:', agentData.agent_id);
 
     // Purchase phone number
@@ -93,7 +104,7 @@ export default async function handler(
       return res.status(500).json({ error: 'Failed to purchase phone number', details: error });
     }
 
-    const phoneData = await phoneResponse.json();
+    const phoneData: BlandPhoneResponse = await phoneResponse.json();
     console.log('Phone number purchased:', phoneData.phone_number);
 
     // Update business with phone number and agent ID

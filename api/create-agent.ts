@@ -22,8 +22,7 @@ interface CreateAgentRequest {
 
 interface BlandAgentResponse {
   agent_id: string;
-  phone_number: string;
-  status: string;
+  [key: string]: any;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
