@@ -82,7 +82,7 @@ export default async function handler(
       return res.status(500).json({ error: 'Failed to create AI agent', details: error });
     }
 
-    const agentData: BlandAgentResponse = await agentResponse.json();
+    const agentData = await agentResponse.json() as BlandAgentResponse;
     console.log('Agent created:', agentData.agent_id);
 
     // Purchase phone number
@@ -104,7 +104,7 @@ export default async function handler(
       return res.status(500).json({ error: 'Failed to purchase phone number', details: error });
     }
 
-    const phoneData: BlandPhoneResponse = await phoneResponse.json();
+    const phoneData = await phoneResponse.json() as BlandPhoneResponse;
     console.log('Phone number purchased:', phoneData.phone_number);
 
     // Update business with phone number and agent ID

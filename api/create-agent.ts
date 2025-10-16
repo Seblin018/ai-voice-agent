@@ -78,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Failed to create Bland AI agent' });
     }
 
-    const agentData: BlandAgentResponse = await blandResponse.json();
+    const agentData = await blandResponse.json() as BlandAgentResponse;
 
     // Update business record with Bland agent info
     const { error: updateError } = await supabase
