@@ -56,7 +56,6 @@ export default async function handler(
 
     console.log('Creating Bland AI agent for:', business.name);
 
-    // Create AI agent with Bland
     const agentResponse = await fetch('https://api.bland.ai/v1/agents', {
       method: 'POST',
       headers: {
@@ -65,7 +64,7 @@ export default async function handler(
       },
       body: JSON.stringify({
         prompt: getSepticAgentPrompt(business.name),
-        voice_id: 11, // Professional female voice
+        voice_id: 11,
         model: 'enhanced',
         language: 'en',
         webhook: `https://septicagent.com/api/bland-webhook?business_id=${business_id}`,
@@ -76,13 +75,39 @@ export default async function handler(
       })
     });
 
+    console.log('Bland response status:', agentResponse.status);
+    console.log('Bland response headers:', agentResponse.headers);
+
+    // Check if response is actually JSON
+    const contentType = agentResponse.headers.get('content-type');
+    console.log('Content-Type:', contentType);
+
     if (!agentResponse.ok) {
-      const error = await agentResponse.json();
-      console.error('Bland agent creation failed:', error);
-      return res.status(500).json({ error: 'Failed to create AI agent', details: error });
+      const errorText = await agentResponse.text();
+      console.error('Bland API error response:', errorText);
+      return res.status(500).json({ 
+        error: 'Bland API error', 
+        status: agentResponse.status,
+        details: errorText 
+      });
     }
 
-    const agentData = await agentResponse.json() as BlandAgentResponse;
+    // Try to get text first, then parse
+    const responseText = await agentResponse.text();
+    console.log('Bland response body:', responseText);
+
+    let agentData;
+    try {
+      agentData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse Bland response as JSON');
+      console.error('Response was:', responseText);
+      return res.status(500).json({ 
+        error: 'Bland returned invalid JSON', 
+        response: responseText.substring(0, 500) 
+      });
+    }
+
     console.log('Agent created:', agentData.agent_id);
 
     // Purchase phone number
