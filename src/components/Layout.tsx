@@ -7,13 +7,13 @@ import {
   CreditCard, 
   Menu, 
   X,
-  MessageSquare,
   User,
   LogOut,
   ChevronDown
 } from 'lucide-react';
 import PageTransition from './PageTransition';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,6 +24,7 @@ export default function Layout({ children }: LayoutProps) {
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [business, setBusiness] = useState<any>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -43,9 +44,6 @@ export default function Layout({ children }: LayoutProps) {
     return location.pathname.startsWith(href);
   };
 
-  const handleCursorClick = () => {
-    console.log("Hello from Cursor!");
-  };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -86,6 +84,21 @@ export default function Layout({ children }: LayoutProps) {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
+  }, []);
+
+  useEffect(() => {
+    const fetchBusiness = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from('businesses')
+          .select('ai_enabled')
+          .eq('user_id', user.id)
+          .single();
+        setBusiness(data);
+      }
+    };
+    fetchBusiness();
   }, []);
 
   return (
@@ -193,13 +206,21 @@ export default function Layout({ children }: LayoutProps) {
             </div>
             
             <div className="flex items-center gap-4">
-              <button
-                onClick={handleCursorClick}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
-              >
-                <MessageSquare className="h-4 w-4" />
-                Test Cursor
-              </button>
+              {/* AI Agent Status */}
+              {user?.business?.ai_enabled ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 border border-green-200">
+                  <div className="relative flex items-center justify-center w-2 h-2">
+                    <div className="absolute w-2 h-2 bg-green-500 rounded-full"></div>
+                    <div className="absolute w-2 h-2 bg-green-500 rounded-full animate-ping opacity-75"></div>
+                  </div>
+                  <span className="text-sm font-medium text-green-700">AI Agent: Active</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-600">AI Agent: Inactive</span>
+                </div>
+              )}
               
               {/* User Profile Dropdown */}
               <div className="relative" ref={dropdownRef}>
