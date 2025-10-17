@@ -108,9 +108,19 @@ export default async function handler(
       });
     }
 
-    console.log('Agent created:', agentData.agent_id);
+    const agentId = agentData.agent?.agent_id || agentData.agent_id;
+    console.log('Agent created:', agentId);
 
-    // Purchase phone number
+    if (!agentId) {
+      console.error('No agent_id in response:', agentData);
+      return res.status(500).json({ 
+        error: 'Failed to get agent ID from Bland response',
+        response: agentData 
+      });
+    }
+
+    console.log('Purchasing phone number for agent:', agentId);
+
     const phoneResponse = await fetch('https://api.bland.ai/v1/inbound', {
       method: 'POST',
       headers: {
@@ -118,26 +128,43 @@ export default async function handler(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        agent_id: agentData.agent_id,
-        // Optionally specify area code based on business location
+        agent_id: agentId,
       })
     });
 
+    console.log('Phone response status:', phoneResponse.status);
+
+    const phoneText = await phoneResponse.text();
+    console.log('Phone response body:', phoneText);
+
     if (!phoneResponse.ok) {
-      const error = await phoneResponse.json();
-      console.error('Phone number purchase failed:', error);
-      return res.status(500).json({ error: 'Failed to purchase phone number', details: error });
+      console.error('Phone number purchase failed');
+      return res.status(500).json({ 
+        error: 'Failed to purchase phone number',
+        status: phoneResponse.status,
+        details: phoneText
+      });
     }
 
-    const phoneData = await phoneResponse.json() as BlandPhoneResponse;
-    console.log('Phone number purchased:', phoneData.phone_number);
+    let phoneData;
+    try {
+      phoneData = JSON.parse(phoneText);
+    } catch (e) {
+      console.error('Failed to parse phone response as JSON:', phoneText);
+      return res.status(500).json({ 
+        error: 'Invalid phone number response', 
+        response: phoneText.substring(0, 500) 
+      });
+    }
+
+    console.log('Phone number purchased:', phoneData);
 
     // Update business with phone number and agent ID
     const { error: updateError } = await supabase
       .from('businesses')
       .update({
         ai_phone_number: phoneData.phone_number,
-        bland_agent_id: agentData.agent_id,
+        bland_agent_id: agentId,
         ai_enabled: true,
       })
       .eq('id', business_id);
@@ -152,7 +179,7 @@ export default async function handler(
     return res.status(200).json({
       success: true,
       phoneNumber: phoneData.phone_number,
-      agentId: agentData.agent_id,
+      agentId: agentId,
     });
 
   } catch (error) {
