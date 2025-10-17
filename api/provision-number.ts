@@ -119,67 +119,34 @@ export default async function handler(
       });
     }
 
-    console.log('Purchasing phone number for agent:', agentId);
+    // After creating agent
+    const agentId = agentData.agent?.agent_id || agentData.agent_id;
+    console.log('Agent created:', agentId);
 
-    const phoneResponse = await fetch('https://api.bland.ai/v1/inbound', {
-      method: 'POST',
-      headers: {
-        'authorization': process.env.BLAND_API_KEY!,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        agent_id: agentId,
-      })
-    });
+    // Your purchased phone number from Bland
+    const PURCHASED_PHONE_NUMBER = '+16196162940'; // Replace with your actual number
 
-    console.log('Phone response status:', phoneResponse.status);
+    console.log('Assigning phone number to agent:', PURCHASED_PHONE_NUMBER);
 
-    const phoneText = await phoneResponse.text();
-    console.log('Phone response body:', phoneText);
-
-    if (!phoneResponse.ok) {
-      console.error('Phone number purchase failed');
-      return res.status(500).json({ 
-        error: 'Failed to purchase phone number',
-        status: phoneResponse.status,
-        details: phoneText
-      });
-    }
-
-    let phoneData;
-    try {
-      phoneData = JSON.parse(phoneText);
-    } catch (e) {
-      console.error('Failed to parse phone response as JSON:', phoneText);
-      return res.status(500).json({ 
-        error: 'Invalid phone number response', 
-        response: phoneText.substring(0, 500) 
-      });
-    }
-
-    console.log('Phone number purchased:', phoneData);
-
-    // Update business with phone number and agent ID
+    // Save to database
     const { error: updateError } = await supabase
       .from('businesses')
       .update({
-        ai_phone_number: phoneData.phone_number,
+        ai_phone_number: PURCHASED_PHONE_NUMBER,
         bland_agent_id: agentId,
         ai_enabled: true,
       })
       .eq('id', business_id);
 
     if (updateError) {
-      console.error('Failed to update business:', updateError);
-      return res.status(500).json({ error: 'Failed to save phone number' });
+      return res.status(500).json({ error: 'Failed to save' });
     }
-
-    console.log('Successfully provisioned AI agent for business:', business_id);
 
     return res.status(200).json({
       success: true,
-      phoneNumber: phoneData.phone_number,
+      phoneNumber: PURCHASED_PHONE_NUMBER,
       agentId: agentId,
+      instructions: 'Go to app.bland.ai and link this phone number to your agent'
     });
 
   } catch (error) {
