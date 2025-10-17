@@ -123,16 +123,15 @@ export default async function handler(
     const agentId = agentData.agent?.agent_id || agentData.agent_id;
     console.log('Agent created:', agentId);
 
-    // Your purchased phone number from Bland
-    const PURCHASED_PHONE_NUMBER = '+16196162940'; // Replace with your actual number
+    // After creating agent
+    const BLAND_PHONE_NUMBER = process.env.BLAND_PHONE_NUMBER; // +16196162940
 
-    console.log('Assigning phone number to agent:', PURCHASED_PHONE_NUMBER);
+    console.log('Assigning phone number to agent:', BLAND_PHONE_NUMBER);
 
-    // Save to database
     const { error: updateError } = await supabase
       .from('businesses')
       .update({
-        ai_phone_number: PURCHASED_PHONE_NUMBER,
+        ai_phone_number: BLAND_PHONE_NUMBER,
         bland_agent_id: agentId,
         ai_enabled: true,
       })
@@ -144,7 +143,7 @@ export default async function handler(
 
     return res.status(200).json({
       success: true,
-      phoneNumber: PURCHASED_PHONE_NUMBER,
+      phoneNumber: BLAND_PHONE_NUMBER,
       agentId: agentId,
       instructions: 'Go to app.bland.ai and link this phone number to your agent'
     });

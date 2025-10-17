@@ -89,15 +89,17 @@ export default function Layout({ children }: LayoutProps) {
   useEffect(() => {
     const fetchBusiness = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from('businesses')
-          .select('ai_enabled')
-          .eq('user_id', user.id)
-          .single();
-        setBusiness(data);
-      }
+      if (!user) return;
+      
+      const { data: businessData } = await supabase
+        .from('businesses')
+        .select('ai_enabled, ai_phone_number')
+        .eq('user_id', user.id)
+        .single();
+      
+      setBusiness(businessData);
     };
+    
     fetchBusiness();
   }, []);
 
@@ -206,19 +208,19 @@ export default function Layout({ children }: LayoutProps) {
             </div>
             
             <div className="flex items-center gap-4">
-              {/* AI Agent Status */}
-              {user?.business?.ai_enabled ? (
+              {/* AI Agent Status - replaces Test Cursor button */}
+              {business?.ai_enabled ? (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 border border-green-200">
                   <div className="relative flex items-center justify-center w-2 h-2">
                     <div className="absolute w-2 h-2 bg-green-500 rounded-full"></div>
                     <div className="absolute w-2 h-2 bg-green-500 rounded-full animate-ping opacity-75"></div>
                   </div>
-                  <span className="text-sm font-medium text-green-700">AI Agent: Active</span>
+                  <span className="text-sm font-medium text-green-700">Active</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100">
                   <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                  <span className="text-sm font-medium text-gray-600">AI Agent: Inactive</span>
+                  <span className="text-sm font-medium text-gray-600">Inactive</span>
                 </div>
               )}
               
