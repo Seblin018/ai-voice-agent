@@ -31,6 +31,25 @@ interface Metrics {
   appointmentsBooked: number;
   estimatedRevenue: number;
   calls: Call[];
+  ai_enabled?: boolean;
+}
+
+// AI Agent Status Component
+function AIAgentStatus({ isActive }: { isActive: boolean }) {
+  return (
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
+      isActive 
+        ? 'bg-green-100 text-green-800 border border-green-200' 
+        : 'bg-gray-100 text-gray-600 border border-gray-200'
+    }`}>
+      <div className={`w-2 h-2 rounded-full ${
+        isActive 
+          ? 'bg-green-500 animate-pulse' 
+          : 'bg-gray-400'
+      }`} />
+      <span>AI Agent: {isActive ? 'Active' : 'Inactive'}</span>
+    </div>
+  );
 }
 
 // Audio Player Component
@@ -181,7 +200,8 @@ export default function Dashboard({ data: _data }: DashboardProps) {
         totalCalls,
         appointmentsBooked,
         estimatedRevenue,
-        calls: calls || []
+        calls: calls || [],
+        ai_enabled: business.ai_enabled
       });
 
     } catch (err) {
@@ -292,6 +312,7 @@ export default function Dashboard({ data: _data }: DashboardProps) {
             breadcrumbs={[
               { label: 'Dashboard' }
             ]}
+            statusIndicator={<AIAgentStatus isActive={metrics?.ai_enabled || false} />}
             action={{
               label: 'Activate AI Agent',
               onClick: () => console.log('Activate AI Agent'),
@@ -326,6 +347,7 @@ export default function Dashboard({ data: _data }: DashboardProps) {
           breadcrumbs={[
             { label: 'Dashboard' }
           ]}
+          statusIndicator={<AIAgentStatus isActive={metrics.ai_enabled || false} />}
           action={{
             label: 'Add Call',
             onClick: handleAddCall,

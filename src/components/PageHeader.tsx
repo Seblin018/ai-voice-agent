@@ -17,13 +17,15 @@ interface PageHeaderProps {
     icon?: ReactNode;
     variant?: 'primary' | 'secondary' | 'outline';
   };
+  statusIndicator?: ReactNode;
 }
 
 export default function PageHeader({ 
   title, 
   description, 
   breadcrumbs = [], 
-  action 
+  action,
+  statusIndicator
 }: PageHeaderProps) {
   const getButtonStyles = (variant: 'primary' | 'secondary' | 'outline' = 'primary') => {
     const baseStyles = "inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2";
@@ -79,15 +81,18 @@ export default function PageHeader({
           )}
         </div>
         
-        {action && (
-          <button
-            onClick={action.onClick}
-            className={getButtonStyles(action.variant)}
-          >
-            {action.icon}
-            {action.label}
-          </button>
-        )}
+        <div className="flex items-center gap-4">
+          {statusIndicator}
+          {action && (
+            <button
+              onClick={action.onClick}
+              className={getButtonStyles(action.variant)}
+            >
+              {action.icon}
+              {action.label}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
