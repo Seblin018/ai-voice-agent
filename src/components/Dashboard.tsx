@@ -1,4 +1,4 @@
-import { CheckCircle, DollarSign, TrendingUp, Clock, Phone, Calendar as CalendarIcon, Shield, ArrowRight, BarChart3, Settings, Users, Plus, Crown, Building2, Loader2, Play, Pause, Volume2, FileText } from 'lucide-react';
+import { CheckCircle, DollarSign, TrendingUp, Clock, Phone, Calendar as CalendarIcon, Shield, ArrowRight, BarChart3, Settings, Users, Plus, Crown, Building2, Loader2, Play, Pause, Volume2, FileText, X, AlertCircle } from 'lucide-react';
 import PageHeader from './PageHeader';
 import EmptyState from './EmptyState';
 import { useState, useEffect } from 'react';
@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
 interface DashboardProps {
-  data?: any; // Keeping this for compatibility but we'll use our own data
+  data?: any;
 }
 
 interface Call {
@@ -24,7 +24,6 @@ interface Call {
   created_at: string;
 }
 
-
 interface Metrics {
   businessName: string;
   totalCalls: number;
@@ -32,6 +31,29 @@ interface Metrics {
   estimatedRevenue: number;
   calls: Call[];
   ai_enabled?: boolean;
+  bland_agent_id?: string;
+  ai_phone_number?: string;
+}
+
+// Success Toast Component
+function SuccessToast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 5000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed top-4 right-4 bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3 shadow-lg z-40 max-w-sm">
+      <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+      <p className="text-green-800 text-sm font-medium">{message}</p>
+      <button
+        onClick={onClose}
+        className="text-green-600 hover:text-green-700 ml-auto"
+      >
+        <X size={18} />
+      </button>
+    </div>
+  );
 }
 
 // AI Agent Status Component
@@ -156,6 +178,7 @@ export default function Dashboard({ data: _data }: DashboardProps) {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   // Fetch dashboard data
   const fetchDashboardData = async () => {
@@ -187,13 +210,12 @@ export default function Dashboard({ data: _data }: DashboardProps) {
         throw new Error('Failed to fetch calls data');
       }
 
-
       // Calculate metrics
       const totalCalls = calls?.length || 0;
       const appointmentsBooked = calls?.filter(call => 
         call.outcome === 'Appointment Booked' || call.outcome === 'appointment_booked'
       ).length || 0;
-      const estimatedRevenue = appointmentsBooked * business.avg_job_value;
+      const estimatedRevenue = appointmentsBooked * (business.avg_job_value || 0);
 
       setMetrics({
         businessName: business.name,
@@ -201,7 +223,9 @@ export default function Dashboard({ data: _data }: DashboardProps) {
         appointmentsBooked,
         estimatedRevenue,
         calls: calls || [],
-        ai_enabled: business.ai_enabled
+        ai_enabled: business.ai_enabled,
+        bland_agent_id: business.bland_agent_id,
+        ai_phone_number: business.ai_phone_number,
       });
 
     } catch (err) {
@@ -212,17 +236,16 @@ export default function Dashboard({ data: _data }: DashboardProps) {
     }
   };
 
-
   // Load data on mount
   useEffect(() => {
     fetchDashboardData();
   }, [user]);
 
+  // Wizard functionality will be added later
+
   const handleAddCall = () => {
     console.log("Add new call clicked");
   };
-
-
 
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('en-US', {
@@ -302,7 +325,7 @@ export default function Dashboard({ data: _data }: DashboardProps) {
   }
 
   // No data state
-  if (!metrics || metrics.totalCalls === 0) {
+  if (!metrics || (metrics.totalCalls === 0 && !metrics.ai_enabled)) {
     return (
       <div className="p-6">
         <div className="max-w-7xl mx-auto">
@@ -314,25 +337,56 @@ export default function Dashboard({ data: _data }: DashboardProps) {
             ]}
             statusIndicator={<AIAgentStatus isActive={metrics?.ai_enabled || false} />}
             action={{
-              label: 'Activate AI Agent',
-              onClick: () => console.log('Activate AI Agent'),
+              label: 'Set Up AI Agent',
+              onClick: () => console.log('Setup AI Agent clicked'),
               icon: <Plus className="h-4 w-4" />,
               variant: 'primary'
             }}
           />
           
+          {showSuccess && (
+            <SuccessToast
+              message="AI agent configured successfully! 🎉"
+              onClose={() => setShowSuccess(false)}
+            />
+          )}
+
+          {metrics?.ai_enabled && (
+            <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-blue-900 mb-1">AI Agent Active</h3>
+                  <p className="text-blue-800 text-sm mb-3">
+                    Your AI agent is now active! Start forwarding your calls to begin capturing business.
+                  </p>
+                  {metrics.ai_phone_number && (
+                    <div className="text-sm bg-white rounded p-2 font-mono text-blue-600">
+                      Forward to: {metrics.ai_phone_number}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="mt-8">
             <EmptyState
               icon={Phone}
-              title="No calls yet"
-              description="Forward your phone to activate! Your AI will start capturing calls once you set up call forwarding to your dedicated AI phone number."
+              title={metrics?.ai_enabled ? "No calls yet" : "Get Started with Your AI Agent"}
+              description={metrics?.ai_enabled 
+                ? "Forward your phone to activate! Your AI will start capturing calls once you set up call forwarding to your dedicated AI phone number."
+                : "Set up your AI agent to start capturing calls automatically."
+              }
               action={{
-                label: 'Set Up AI Agent',
-                onClick: () => console.log('Set up AI agent'),
+                label: metrics?.ai_enabled ? 'View Settings' : 'Set Up AI Agent',
+                onClick: () => console.log('Setup/Settings clicked'),
                 icon: <Settings className="h-4 w-4" />
               }}
             />
           </div>
+
+          {/* AIAgentSetupWizard component will be added later */}
         </div>
       </div>
     );
@@ -355,6 +409,14 @@ export default function Dashboard({ data: _data }: DashboardProps) {
             variant: 'primary'
           }}
         />
+
+        {showSuccess && (
+          <SuccessToast
+            message="AI agent configured successfully! 🎉"
+            onClose={() => setShowSuccess(false)}
+          />
+        )}
+
         <div className="space-y-8">
           {/* ROI Card */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-8 text-white shadow-lg">
@@ -399,7 +461,7 @@ export default function Dashboard({ data: _data }: DashboardProps) {
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Performance Overview</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* After-Hours Calls */}
+              {/* Total Calls */}
               <div className="bg-white rounded-lg p-6 shadow-md border border-gray-100">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-2 bg-blue-50 rounded-lg">
@@ -626,6 +688,8 @@ export default function Dashboard({ data: _data }: DashboardProps) {
             </div>
           </div>
         </div>
+
+        {/* AIAgentSetupWizard component will be added later */}
       </div>
     </div>
   );
